@@ -1,18 +1,36 @@
 module Main exposing (..)
 
 import Html exposing (Html, text, div, h1, img)
+import Task exposing (perform)
+import Time exposing (..)
+import Html exposing (..)
+import Color exposing (..)
+import Collage exposing (Shape,Form)
+import Text exposing (fromString,Text)
+import Element exposing (toHtml)
+import Platform.Sub exposing (batch)
+import Window exposing (Size,resizes)
 
 
 ---- MODEL ----
 
 
 type alias Model =
-    {}
+    {window: Window.Size}
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( {}, Cmd.none )
+    ( initialModel , initialSize )
+
+initialSize : Cmd Msg
+initialSize =
+  Window.size
+    |> perform SizeUpdated
+
+initialModel : Model
+initialModel =
+  {window = Size 0 0}
 
 
 
@@ -20,12 +38,15 @@ init =
 
 
 type Msg
-    = NoOp
+    = SizeUpdated Size
+    -- | Tick
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+  case msg of
+    SizeUpdated newSize ->
+      { model | window = newSize } ! []
 
 
 
@@ -34,10 +55,23 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
+  let h = model.window.height in
+  let w = model.window.width in
     div []
-        [ h1 [] [ text "Your Elm App is working!" ] ]
+        [ h1 []
+            [
+              text <| toString h
+            , text <| toString w
+            ]
+        ]
 
 
+---- SUBSCRIPTIONS ----
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  batch
+    -- [ every millisecond (\_ -> Tick)
+    [ resizes SizeUpdated ]
 
 ---- PROGRAM ----
 
@@ -48,5 +82,5 @@ main =
         { view = view
         , init = init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
