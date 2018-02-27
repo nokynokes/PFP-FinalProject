@@ -52,17 +52,18 @@ update msg model =
 
 ---- VIEW ----
 
+getWindowSize : Model -> (Int, Int)
+getWindowSize model =
+  (model.window.height , model.window.width )
 
 view : Model -> Html Msg
 view model =
-  let h = model.window.height in
-  let w = model.window.width in
+  let (h, w) = getWindowSize model in
     div []
-        [ h1 []
-            [
-              text <| toString h
-            , text <| toString w
-            ]
+        [ div []
+          [text "Height: ", text <| toString h]
+        , div []
+          [text "Width: ", text <| toString w]
         ]
 
 
