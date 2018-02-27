@@ -64,6 +64,12 @@ view model =
           [text "Height: ", text <| toString h]
         , div []
           [text "Width: ", text <| toString w]
+        , div []
+          [
+            let path = Collage.segment (0,0) (toFloat w, toFloat h) in
+            let line = Collage.traced (Collage.solid black) path in
+              toHtml <| Collage.collage h w [line] 
+          ]
         ]
 
 
