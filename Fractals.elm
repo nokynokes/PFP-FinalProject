@@ -2,8 +2,8 @@
 module Fractals exposing (main)
 
 
-import Random exposing (Generator, Seed, map2, float)
-import Time exposing (Time, second)
+import Random exposing (Generator, Seed, map2, float, int)
+import Time exposing (Time, second, millisecond)
 import Html exposing (Html, Attribute)
 import Html.Attributes exposing (style)
 import Element exposing (..)
@@ -30,7 +30,10 @@ type Tree = Empty | BranchFamily Branch (List Tree)
 type alias Model =
     {
         trees : List Tree,
-        window: Window.Size
+        treeHeight : Int,
+        window: Window.Size,
+        seed : Seed,
+        time : Time
 
     }
 
@@ -43,7 +46,7 @@ init = (initialModel, initialSize)
 
 initialSize : Cmd Msg
 initialSize =
-    Window.size > perform SizeUpdated
+    Window.size |> perform SizeUpdated
 
 initialChildren : List Tree
 initialChildren =
@@ -57,52 +60,63 @@ initialModel =
     {
         trees =
             [
-                BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  []
+                BranchFamily ({x = 100, y = 100}, {x = 100, y = 200})  []
             ],
         treeHeight = 0,
-        window = Size 0 0
+        window = Size 0 0 ,
+        seed = Random.initialSeed 4308,
+        time = 0.0
 
     }
 
 -- takes in the previous x and y and does point generator based on that
 
-createEndPoint : Point -> Seed -> Point  --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
-createEndPoint start seed = 
-    Random.step pointGenerator seed
+-- createEndPoint : Point -> Seed -> Point  --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
+-- createEndPoint start seed =
+--     Random.step pointGenerator seed
 
 directionGenerator : Generator Int
-directionGenerator = 
-    Int 1 2
+directionGenerator =
+    int 0 11
 
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
-pointGenerator 
+pointGenerator =
   map2 Point (float 0.2 0.8) (float 0.2 0.8)
+
+
+getDistance : Branch -> Float
+getDistance (p1, p2) =
+  let
+    xdiff = (p2.x - p1.x)^2
+    ydiff = (p2.y - p1.y)^2
+  in
+    sqrt (xdiff + ydiff)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         Tick time ->
-            case model.trees of 
+            case model.trees of
                 [] -> Debug.crash "wont happen"
-                BranchFamily (start, end) children :: t-> 
+                BranchFamily (start, end) children :: t->
                     --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
-                    let 
-                        seed = Random.initialSeed (round time) 
-                        (direction, newSeed1) = Random.step directionGenerator seed
-                        (newPt_Scaling, newSeed2) = Random.step pointGenerator (newSeed1) 
-                        newPt = {x = direction * newPt_Scaling.x * end.x, y = newPt_Scaling.y * end.y}
+                    let
+                        distOfParent = getDistance (start,end)
+                        seed = Random.initialSeed (round time)
+                        (power, newSeed1) = Random.step directionGenerator model.seed
+                        direction = -1^power
+                        (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
+                        newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
                         newTree = BranchFamily (end, newPt) []
 
                     in
-                    ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t}, Cmd.none )
+                    ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t, seed = newSeed1, time = time}, Cmd.none )
 
-                    
+
                 -- branching off of height = 0
-                seed = Random.initialSeed (round time) 
-                model.trees
-                (newPoint, newSeed) = Random.step pointGenerator seed in
-            in
+
+                _ -> Debug.crash "TODO"
 
 
 
@@ -110,7 +124,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     batch  -- way to listen for multiple subscriptions
         [ resizes SizeUpdated
-        , Time.every (5 second) Tick]
+        , Time.every (0.5* second) Tick]
 
 getWindowSize : Model -> (Int, Int)
 getWindowSize m =
