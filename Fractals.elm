@@ -46,8 +46,8 @@ initialSize =
 initialChildren : List Tree
 initialChildren =
   [
-    (BranchFamily ({x = 100, y = 140}, {x = 120, y = 160}) [])
-    , (BranchFamily ({x = 100, y = 120}, {x = 180, y = 140})  [])
+    (BranchFamily ({x = 100, y = 140}, {x = 120, y = 160}) [(BranchFamily ({x = 120, y = 160}, {x = 110, y = 200})  [])])
+    , (BranchFamily ({x = 100, y = 120}, {x = 180, y = 140})  [(BranchFamily ({x = 180, y = 140}, {x = 180, y = 200})  [])])
   ]
 
 initialModel : Model
@@ -55,7 +55,7 @@ initialModel =
     {
         trees =
             [
-                BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  initialChildren
+                BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  []
             ],
         window = Size 0 0
 
@@ -82,18 +82,18 @@ getWindowSize m =
     (m.window.height, m.window.width)
 
 makeBranch : Branch -> Form
-makeBranch (start, end) = 
+makeBranch (start, end) =
 
-   Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y)) 
+   Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y))
 
 getBranches : List Tree -> List Form -> List Form
-getBranches t_lst f_lst = 
+getBranches t_lst f_lst =
     case t_lst of
         [] -> f_lst
-        (BranchFamily (s1, e1) c1) :: t1 -> 
-            case c1 of 
-                [] -> (getBranches t1) ( (makeBranch (s1, e1)) :: f_lst)
-                (BranchFamily (s2, e2) c2) :: t2 -> (getBranches c1)  ( (makeBranch (s1, e1)) :: f_lst )
+        (BranchFamily (s1, e1) c1) :: t1 ->
+            case c1 of
+                [] -> getBranches t1 ( (makeBranch (s1, e1)) :: f_lst)
+                BranchFamily _ _ :: _ -> (getBranches c1  ( (makeBranch (s1, e1)) :: f_lst )) |> getBranches t1
                 _ -> Debug.crash "Shouldn't get here"
         _ -> Debug.crash "Shouldn't get here"
 
@@ -102,26 +102,11 @@ getBranches t_lst f_lst =
 
 view : Model -> Html Msg
 view model =
-    let 
+    let
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
     in
       Html.div []
           [
               toHtml <| Collage.collage h w trees
-        {-
-              case model.trees of
-                  [] -> Debug.crash "TODO"
-                  (BranchFamily (start, end) children) :: _ ->
-                    case children of
-                      [] -> Debug.crash "TODO"
-                      (BranchFamily (s,e) c) :: _ ->
-                        let trunk = Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y)) in
-                        let child = Collage.traced (Collage.solid blue) (Collage.segment (s.x, s.y) (e.x, e.y)) in
-                          toHtml <| Collage.collage h w [trunk, child]
-                      _ -> Debug.crash "TODO"
-
-                  _ -> Debug.crash "TODO"
-        -}
-
           ]
