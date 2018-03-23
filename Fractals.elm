@@ -43,7 +43,7 @@ init = (initialModel, initialSize)
 
 initialSize : Cmd Msg
 initialSize =
-    Window.size |> perform SizeUpdated
+    Window.size > perform SizeUpdated
 
 initialChildren : List Tree
 initialChildren =
@@ -59,16 +59,50 @@ initialModel =
             [
                 BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  []
             ],
+        treeHeight = 0,
         window = Size 0 0
 
     }
+
+-- takes in the previous x and y and does point generator based on that
+
+createEndPoint : Point -> Seed -> Point  --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
+createEndPoint start seed = 
+    Random.step pointGenerator seed
+
+directionGenerator : Generator Int
+directionGenerator = 
+    Int 1 2
+
+pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
+pointGenerator 
+  map2 Point (float 0.2 0.8) (float 0.2 0.8)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         Tick time ->
-            let seed = Random.initialSeed (round time) in
+            case model.trees of 
+                [] -> Debug.crash "wont happen"
+                BranchFamily (start, end) children :: t-> 
+                    --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
+                    let 
+                        seed = Random.initialSeed (round time) 
+                        (direction, newSeed1) = Random.step directionGenerator seed
+                        (newPt_Scaling, newSeed2) = Random.step pointGenerator (newSeed1) 
+                        newPt = {x = direction * newPt_Scaling.x * end.x, y = newPt_Scaling.y * end.y}
+                        newTree = BranchFamily (end, newPt) []
+
+                    in
+                    ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t}, Cmd.none )
+
+                    
+                -- branching off of height = 0
+                seed = Random.initialSeed (round time) 
+                model.trees
+                (newPoint, newSeed) = Random.step pointGenerator seed in
+            in
 
 
 
