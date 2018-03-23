@@ -15,7 +15,7 @@ import Task exposing (perform)
 
 
 main : Program Never Model Msg
-main = 
+main =
   Html.program
     { init = init
     , view = view
@@ -27,7 +27,7 @@ type alias Point = { x:Float, y:Float }
 type alias Branch = (Point, Point) -- (start, end)
 type Tree = Empty | BranchFamily Branch (List Tree)
 
-type alias Model = 
+type alias Model =
     {
         trees : List Tree,
         window: Window.Size
@@ -40,14 +40,14 @@ init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
 
 initialSize : Cmd Msg
-initialSize = 
+initialSize =
     Window.size |> perform SizeUpdated
-    
+
 
 initialModel : Model
-initialModel = 
+initialModel =
     {
-        trees = 
+        trees =
             [
                 BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  []
             ],
@@ -67,21 +67,24 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model = 
+subscriptions model =
     batch  -- way to listen for multiple subscriptions
-        [ resizes SizeUpdated ]--, Time.every second Tick] 
+        [ resizes SizeUpdated ]--, Time.every second Tick]
 
 getWindowSize : Model -> (Int, Int)
-getWindowSize m = 
+getWindowSize m =
     (m.window.height, m.window.width)
 
 view : Model -> Html Msg
-view model = 
+view model =
     let (h, w) = getWindowSize model in
-    Html.div []
-        [
-            toHtml <| Collage.collage h w []
-        ]
+      Html.div []
+          [
+              case model.trees of
+                  [] -> Debug.crash "TODO"
+                  Empty :: _ -> Debug.crash "TODO"
+                  (BranchFamily (start, end) children) :: _ ->
+                    let trunk = Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y)) in
+                      toHtml <| Collage.collage h w [trunk]
 
-                
-                
+          ]
