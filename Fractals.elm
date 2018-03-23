@@ -34,7 +34,9 @@ type alias Model =
 
     }
 
-type Msg = SizeUpdated Size
+type Msg =
+  SizeUpdated Size
+  | Tick Time
 
 init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
@@ -65,17 +67,16 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
-        {-
         Tick time ->
             let seed = Random.initialSeed (round time) in
-        -}
 
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     batch  -- way to listen for multiple subscriptions
-        [ resizes SizeUpdated ]--, Time.every second Tick]
+        [ resizes SizeUpdated
+        , Time.every (5 second) Tick]
 
 getWindowSize : Model -> (Int, Int)
 getWindowSize m =
