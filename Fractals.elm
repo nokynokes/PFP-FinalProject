@@ -43,13 +43,19 @@ initialSize : Cmd Msg
 initialSize =
     Window.size |> perform SizeUpdated
 
+initialChildren : List Tree
+initialChildren =
+  [
+    (BranchFamily ({x = 100, y = 140}, {x = 120, y = 160}) [])
+    , (BranchFamily ({x = 100, y = 120}, {x = 180, y = 140})  [])
+  ]
 
 initialModel : Model
 initialModel =
     {
         trees =
             [
-                BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  []
+                BranchFamily ({x = 100, y = 100}, {x = 100, y = 140})  initialChildren
             ],
         window = Size 0 0
 
@@ -82,9 +88,15 @@ view model =
           [
               case model.trees of
                   [] -> Debug.crash "TODO"
-                  Empty :: _ -> Debug.crash "TODO"
                   (BranchFamily (start, end) children) :: _ ->
-                    let trunk = Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y)) in
-                      toHtml <| Collage.collage h w [trunk]
+                    case children of
+                      [] -> Debug.crash "TODO"
+                      (BranchFamily (s,e) c) :: _ ->
+                        let trunk = Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y)) in
+                        let child = Collage.traced (Collage.solid blue) (Collage.segment (s.x, s.y) (e.x, e.y)) in
+                          toHtml <| Collage.collage h w [trunk, child]
+                      _ -> Debug.crash "TODO"
+
+                  _ -> Debug.crash "TODO"
 
           ]
