@@ -155,7 +155,9 @@ getBranches t_lst f_lst =
         _ -> Debug.crash "Shouldn't get here"
 
 
-
+allowedToGrow : Int -> Int -> Bool
+allowedToGrow yBound yMouse =
+  (yBound * 0.25) >= yMouse
 
 view : Model -> Html Msg
 view model =
