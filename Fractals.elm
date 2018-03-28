@@ -12,6 +12,7 @@ import Color exposing (..)
 import Platform.Sub exposing (batch)
 import Window exposing (Size, resizes)
 import Task exposing (perform)
+import Mouse exposing (clicks)
 
 
 main : Program Never Model Msg
@@ -33,13 +34,15 @@ type alias Model =
         treeHeight : Int,
         window: Window.Size,
         seed : Seed,
-        time : Time
+        time : Time,
+        mousePos: Mouse.Position
 
     }
 
 type Msg =
   SizeUpdated Size
   | Tick Time
+  | Click Mouse.Position
 
 init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
@@ -65,7 +68,8 @@ initialModel =
         treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
-        time = 0.0
+        time = 0.0,
+        mousePos = {x = 0, y = 0}
 
     }
 
@@ -117,6 +121,8 @@ update msg model =
                 -- branching off of height = 0
 
                 _ -> Debug.crash "TODO"
+        Click pos ->
+          {model | mousePos = pos} ! []
 
 
 
@@ -124,7 +130,9 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     batch  -- way to listen for multiple subscriptions
         [ resizes SizeUpdated
-        , Time.every (0.5* second) Tick]
+        , Time.every (0.5* second) Tick
+        , clicks (\pos -> Click pos)
+        ]
 
 getWindowSize : Model -> (Int, Int)
 getWindowSize m =
@@ -154,6 +162,7 @@ view model =
     let
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
+        mouse = model.mousePos
     in
       Html.div []
           [
