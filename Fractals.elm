@@ -34,14 +34,13 @@ type alias Model =
         treeHeight : Int,
         window: Window.Size,
         seed : Seed,
-        time : Time,
-        mousePos: Mouse.Position
+        time : Time
 
     }
 
 type Msg =
   SizeUpdated Size
-  | Tick Time
+  -- | Tick Time
   | Click Mouse.Position
 
 init : (Model, Cmd Msg)
@@ -61,15 +60,11 @@ initialChildren =
 initialModel : Model
 initialModel =
     {
-        trees =
-            [
-                BranchFamily ({x = 100, y = 100}, {x = 100, y = 200})  []
-            ],
+        trees = [],
         treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
-        time = 0.0,
-        mousePos = {x = 0, y = 0}
+        time = 0.0
 
     }
 
@@ -100,29 +95,35 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
-        Tick time ->
-            case model.trees of
-                [] -> Debug.crash "wont happen"
-                BranchFamily (start, end) children :: t->
-                    --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
-                    let
-                        distOfParent = getDistance (start,end)
-                        seed = Random.initialSeed (round time)
-                        (power, newSeed1) = Random.step directionGenerator model.seed
-                        direction = -1^power
-                        (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
-                        newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
-                        newTree = BranchFamily (end, newPt) []
-
-                    in
-                    ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t, seed = newSeed1, time = time}, Cmd.none )
-
-
-                -- branching off of height = 0
-
-                _ -> Debug.crash "TODO"
+        -- Tick time ->
+        --     case model.trees of
+        --         [] -> model ! []
+        --         BranchFamily (start, end) children :: t->
+        --             --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
+        --             let
+        --                 distOfParent = getDistance (start,end)
+        --                 seed = Random.initialSeed (round time)
+        --                 (power, newSeed1) = Random.step directionGenerator model.seed
+        --                 direction = -1^power
+        --                 (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
+        --                 newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
+        --                 newTree = BranchFamily (end, newPt) []
+        --
+        --             in
+        --             ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t, seed = newSeed1, time = time}, Cmd.none )
+        --
+        --
+        --         -- branching off of height = 0
+        --
+        --         _ -> Debug.crash "TODO"
         Click pos ->
-          {model | mousePos = pos} ! []
+          let
+            start = {x = toFloat pos.x, y = toFloat pos.y}
+            end = {x = toFloat pos.x, y = toFloat (pos.y + 40)}
+          in
+            { model | trees = (BranchFamily (start,end) []) :: model.trees } ! []
+
+
 
 
 
@@ -130,7 +131,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     batch  -- way to listen for multiple subscriptions
         [ resizes SizeUpdated
-        , Time.every (0.5* second) Tick
+        -- , Time.every (0.5* second) Tick
         , clicks (\pos -> Click pos)
         ]
 
@@ -157,14 +158,13 @@ getBranches t_lst f_lst =
 
 allowedToGrow : Int -> Int -> Bool
 allowedToGrow yBound yMouse =
-  (yBound * 0.25) >= yMouse
+  round (toFloat (yBound) * 0.25) >= yMouse
 
 view : Model -> Html Msg
 view model =
     let
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
-        mouse = model.mousePos
     in
       Html.div []
           [
