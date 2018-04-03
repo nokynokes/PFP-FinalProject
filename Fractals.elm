@@ -31,7 +31,7 @@ type Tree = Empty | BranchFamily Branch (List Tree)
 type alias Model =
     {
         trees : List Tree,
-        treeHeight : Int,
+        treeHeight : Int, --Eventually a List Int
         window: Window.Size,
         seed : Seed,
         time : Time,
@@ -51,6 +51,7 @@ initialSize : Cmd Msg
 initialSize =
     Window.size |> perform SizeUpdated
 
+-- this is for testing, not being used currently
 initialChildren : List Tree
 initialChildren =
   [
@@ -79,9 +80,15 @@ initialModel =
 -- createEndPoint start seed =
 --     Random.step pointGenerator seed
 
+-- random int between 0 and 11 that makes direction
 directionGenerator : Generator Int
 directionGenerator =
     int 0 11
+
+-- for help determining height of next insertion
+floatGenerator : Generator Float
+floatGenerator = 
+    float 0 1
 
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
 pointGenerator =
@@ -106,15 +113,22 @@ update msg model =
                 BranchFamily (start, end) children :: t->
                     --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
                     let
-                        distOfParent = getDistance (start,end)
                         seed = Random.initialSeed (round time)
                         (power, newSeed1) = Random.step directionGenerator model.seed
                         direction = -1^power
                         (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
+                        -- determine parent
+                        (randFloat, newSeed3) = (Random.step floatGenerator (newSeed2))
+                        insertHeight = round (toFloat (model.treeHeight) * randFloat)
+                        
+                        log = Debug.log "insert height" insertHeight
+                        floatLog = Debug.log "randFloat" randFloat
+                        distOfParent = getDistance (start,end)
                         newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
                         newTree = BranchFamily (end, newPt) []
 
                     in
+                    -- prepend newTree to children of Branch family
                     ( {model | trees = BranchFamily (start, end) (newTree :: children) :: t, seed = newSeed1, time = time}, Cmd.none )
 
 
