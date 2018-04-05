@@ -1,7 +1,6 @@
 
 module Fractals exposing (main)
 
-
 import Random exposing (Generator, Seed, map2, float, int)
 import Time exposing (Time, second, millisecond)
 import Html exposing (Html, Attribute)
@@ -25,7 +24,13 @@ main =
     }
 
 type alias Point = { x:Float, y:Float }
+--** New Types, implment later ****
+--type alias Angle = Float -- in radians (cos and sin need radian arguments)
+--type alias Magnitude = Float
+--type alias Vector = (Angle, Magnitude)
+--type alias Branch = (Point, Vector)
 type alias Branch = (Point, Point) -- (start, end)
+
 type Tree = Empty | BranchFamily Branch (List Tree)
 
 type alias Model =
@@ -65,6 +70,7 @@ initialModel =
         trees =
             [
                 BranchFamily ({x = 100, y = 100}, {x = 100, y = 200})  []
+                -- This will be it when converted to radians BranchFamily ({x=100, y=100}, ((degree 90), 100))
             ],
         treeHeight = 0,
         window = Size 0 0 ,
@@ -94,14 +100,18 @@ pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
 pointGenerator =
   map2 Point (float 0.2 0.8) (float 0.2 0.8)
 
-getTree : Int -> Int -> Int -> Seed -> List Tree -> Tree List
-getTree insH currH n tLst = 
+getTree : Int -> Int -> Int -> Seed -> List Tree -> List Tree
+getTree insH currH n seed tLst = 
     case tLst of 
-        [] -> Debug.crash "All Trees are dead"
+        [] -> 
+            let log = Debug.log "empty list shouldn't happen" tLst in
+            tLst
         h :: t ->
-            if n == 0 
-                then makeTree insH currH h :: t
-            else h :: getTree (n-1) t
+            if n == 0 then
+                case h of
+                    Empty -> Debug.crash "branch doesn't exist!"
+                    (BranchFamily (start, end) children) -> makeTree insH currH seed children
+            else h :: getTree insH currH (n-1) seed t
 
 -- Takes in a tree hight for insertion and Tree List, and returns a Tree
 {- old version, incorporated into makeTree
@@ -146,25 +156,28 @@ getTreeAndAdd n seed tLst =
                             newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
                             newTree = BranchFamily (end, newPt) []
                         in
-                        (BranchFamily (start, end) newTree :: children)
-            else h :: getTreeAndAdd (n-1) t 
+                        BranchFamily (start, end) (newTree :: children) :: t
+            else h :: getTreeAndAdd (n-1) seed t 
 
-makeTree : Int -> Int -> Seed -> List Tree -> (Seed, List Tree)
+makeTree : Int -> Int -> Seed -> List Tree -> List Tree
 makeTree insH currH seed tLst = 
     if insH < 0 then Debug.crash "can't have a negative insH"
     else 
         case tLst of
             [] -> Debug.crash "All Trees are dead"
-            (BranchFamily (start, end) children) :: t ->
+            (BranchFamily (start, end) children) :: _ ->
                 let 
                     (randFloat, newSeed) = (Random.step floatGenerator seed)
                     treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)
                     -- treeInsert = getTree treeNum tLst
                 in
-            if insH == currH
-                then getTreeAndAdd treeNum seed tLst 
+                if insH == currH
+                    -- add new tree to to child treeNum
+                    then getTreeAndAdd treeNum seed tLst 
 
-            else getTree insH currH treeNum seed tLst
+                    -- recurse on child treeNum
+                else getTree insH currH treeNum seed tLst
+            _ -> Debug.crash "shouldn't reach here"
 
 
             -- randomly get tree, and insert to child
@@ -197,7 +210,7 @@ update msg model =
                         (randFloat, newSeed1) = (Random.step floatGenerator (seed))
                         insertHeight = round (toFloat (model.treeHeight) * randFloat)
                         
-                        (newSeed2, newTrees) = makeTree insertHeight 0 newSeed1 model.trees 
+                        newTrees = makeTree insertHeight 0 newSeed1 model.trees 
                         --(BranchFamily (pS, pE) pChildren) = getParent insertH 0 model.trees
                         
                         --log = Debug.log "insert height" insertHeight
@@ -210,7 +223,7 @@ update msg model =
 
                     in
                     -- prepend newTree to children of Branch family
-                    ( {model | trees = newTrees{-BranchFamily (start, end) (newTree :: children) :: t-}, seed = newSeed2, time = time}, Cmd.none )
+                    ( {model | trees = newTrees{-BranchFamily (start, end) (newTree :: children) :: t-}, seed = newSeed1, time = time}, Cmd.none )
 
 
                 -- branching off of height = 0
