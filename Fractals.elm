@@ -100,49 +100,28 @@ pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
 pointGenerator =
   map2 Point (float 0.2 0.8) (float 0.2 0.8)
 
+{-
 getTree : Int -> Int -> Int -> Seed -> List Tree -> List Tree
 getTree insH currH n seed tLst = 
     case tLst of 
         [] -> 
-            let log = Debug.log "empty list shouldn't happen" tLst in
-            tLst
+            let log = Debug.log "empty list, insert here" tLst in
+            getTreeAndAdd 0 
         h :: t ->
             if n == 0 then
                 case h of
                     Empty -> Debug.crash "branch doesn't exist!"
                     (BranchFamily (start, end) children) -> makeTree insH currH seed children
             else h :: getTree insH currH (n-1) seed t
-
--- Takes in a tree hight for insertion and Tree List, and returns a Tree
-{- old version, incorporated into makeTree
-getParent : Int -> Int -> List Tree -> Seed -> Tree
-getParent insH currH tLst seed =  --insertHeight HeightAccumulator treeList and seed
-    if insH < 0 then Debug.crash "can't have a negative insH"
-    else
-        case tLst of
-            [] -> Debug.crash "All Trees are dead"
-            (BranchFamily (start, end) children) :: t ->
-                let 
-                    (randFloat, newSeed) = (Random.step floatGenerator seed)
-                    treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)
-                    treeInsert = getTree treeNum tLst
-                in
-                if insH == currH then treeInsert
-                        
-                else --insH >= 0
-                    case treeInsert of
-                        Empty -> Debug.crash "picked tree does not exist"
-                        BranchFamily (start, end) children -> 
-                            getParent insH (currH+1) children newSeed
-
-            _ -> Debug.crash "Pathological empty case"
 -}
 
+
 -- take in a random number for tree picking and the tree list, and return the modified tree list with added tree to chosen child
+{-
 getTreeAndAdd : Int -> Seed -> List Tree -> List Tree
 getTreeAndAdd n seed tLst = 
     case tLst of 
-        [] -> Debug.crash "All Trees are dead"
+        [] -> 
         h :: t ->
             if n == 0 then 
                 case h of
@@ -158,13 +137,122 @@ getTreeAndAdd n seed tLst =
                         in
                         BranchFamily (start, end) (newTree :: children) :: t
             else h :: getTreeAndAdd (n-1) seed t 
+-}
 
-makeTree : Int -> Int -> Seed -> List Tree -> List Tree
+-- returns the new tree model and tree height of the newly created branch
+makeTree : Int -> Seed -> List Tree -> (Int, List Tree)
+makeTree insH seed tLst = 
+    if insH < 0 then Debug.crash "can't have a negative insH"
+
+    else case tLst of 
+        [] -> 
+            let log = Debug.log "No Trees exist to insert into" tLst in
+            (0, tLst) 
+        (BranchFamily (start, end) children) :: _ ->
+            let 
+                (randFloat, newSeed) = (Random.step floatGenerator seed)
+                treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)
+
+                log = Debug.log "root path chosen is" treeNum
+
+            in
+            chooseRoot treeNum insH newSeed tLst []
+
+        _ -> Debug.crash "shouldn't reach here"
+
+chooseRoot : Int -> Int -> Seed -> List Tree -> List Tree -> (Int, List Tree)
+chooseRoot n insH seed tLst hLst = 
+    case tLst of
+        [] -> Debug.crash "exceeded tree list length"
+        h :: t -> 
+            if n == 0 then 
+                let (newBranchHeight, changedTree) = insertBranch insH seed h in
+                (newBranchHeight, (hLst ++ (changedTree :: t)) )
+
+            else chooseRoot (n-1) insH seed t (h :: hLst)
+
+addBranch : Seed -> Tree -> Tree
+addBranch seed t = 
+    case t of
+        Empty -> Debug.crash "trying to add branch to empty tree"
+        (BranchFamily (start, end) children) -> 
+
+            let
+                distOfParent = getDistance (start,end)
+                (power, newSeed1) = Random.step directionGenerator seed
+                direction = -1^power
+                (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
+                newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
+                newTree = BranchFamily (end, newPt) []
+                log = Debug.log "added Branch to tree (tree not yet updated)" t
+
+            in
+            BranchFamily (start, end) (newTree :: children)
+
+
+insertBranch : Int -> Seed -> Tree -> (Int, Tree)
+insertBranch insH seed t = 
+    case t of 
+        Empty -> Debug.crash "empty tree"
+        (BranchFamily (start, end) children) -> 
+            if insH == 0 
+                then 
+                    let
+                        log = Debug.log "inserting to end" insH
+                    in
+                    (0, addBranch seed t)
+            else -- not at branch level
+                case children of
+                    [] -> 
+                        let 
+                            newTree = addBranch seed t 
+                            log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
+                        in 
+                        (insH, newTree)
+
+                    _ -> 
+                       let 
+                            (randFloat, newSeed) = (Random.step floatGenerator seed)
+                            treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
+                            (aboveH, newChildren) = chooseRoot treeNum insH newSeed children []
+                            logT = Debug.log "tree is" t
+                            logC = Debug.log "children are" children
+                            logLen = Debug.log "length children are" (List.length children)
+                            log = Debug.log "choosing path" treeNum
+                        in 
+
+                        ( (insH - aboveH), BranchFamily (start, end) newChildren)
+
+treeUpdate : Int -> Seed -> List Tree -> (Int, Seed, List Tree)
+treeUpdate treeH seed tLst = 
+    case tLst of
+        [] -> Debug.crash "wont happen"
+        BranchFamily (start, end) children :: t->
+
+            let 
+                (randFloat, newSeed1) = (Random.step floatGenerator (seed))
+                insertHeight = round (toFloat (treeH) * randFloat)
+                                    
+                logH = Debug.log "(tree Height, insert height)" (treeH, insertHeight)
+
+                (branchHeight, newTrees) = makeTree insertHeight newSeed1 tLst 
+                newTreeHeight = 
+                    if branchHeight == 0 then treeH + 1
+                    else treeH
+            in
+            (newTreeHeight, newSeed1, newTrees)
+            
+
+        _ -> Debug.crash "TODO"
+
+{-}
+makeTree : Int -> Int -> Seed -> List Tree -> (Int, List Tree)
 makeTree insH currH seed tLst = 
     if insH < 0 then Debug.crash "can't have a negative insH"
     else 
         case tLst of
-            [] -> Debug.crash "All Trees are dead"
+            [] -> Debug.crash "All Trees are dead or no tress on this level, should be handled by getTree"
+
             (BranchFamily (start, end) children) :: _ ->
                 let 
                     (randFloat, newSeed) = (Random.step floatGenerator seed)
@@ -172,14 +260,16 @@ makeTree insH currH seed tLst =
                     -- treeInsert = getTree treeNum tLst
                 in
                 if insH == currH
-                    -- add new tree to to child treeNum
-                    then getTreeAndAdd treeNum seed tLst 
+                    -- add new tree to to child treeNum, return insert height
+                    then ((insH + 1), getTreeAndAdd treeNum seed tLst)
 
                     -- recurse on child treeNum
-                else getTree insH currH treeNum seed tLst
+                else 
+                    let children = getTree insH currH treeNum seed tLst) in
+                    case children of
+                        [] -> 
             _ -> Debug.crash "shouldn't reach here"
-
-
+-}
             -- randomly get tree, and insert to child
 
 getDistance : Branch -> Float
@@ -195,40 +285,16 @@ update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         Tick time ->
-            case model.trees of
-                [] -> Debug.crash "wont happen"
-                BranchFamily (start, end) children :: t->
-                    --takes in previous branch's endpoint and uses as startpoint to help generate its endpoint
-                    let
-                        seed = Random.initialSeed (round time)
-                        {- put this into getTreeAndAdd
-                        (power, newSeed1) = Random.step directionGenerator model.seed
-                        direction = -1^power
-                        (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
-                        -}
-                        -- determine parent
-                        (randFloat, newSeed1) = (Random.step floatGenerator (seed))
-                        insertHeight = round (toFloat (model.treeHeight) * randFloat)
-                        
-                        newTrees = makeTree insertHeight 0 newSeed1 model.trees 
-                        --(BranchFamily (pS, pE) pChildren) = getParent insertH 0 model.trees
-                        
-                        --log = Debug.log "insert height" insertHeight
-                        --floatLog = Debug.log "randFloat" randFloat
+            let 
+                seed = Random.initialSeed (round time)
+                (newHeight, newSeed, newTrees) = treeUpdate model.treeHeight seed model.trees
+                --log = Debug.log "(new tree height, new seed, new tree model) = " (newHeight, newSeed, newTrees)
+                --log = Debug.log "(new tree height, new seed) = " (newHeight, newSeed)
+            in
 
-                        -- put next 3 lines in external function                        
-                        --distOfParent = getDistance (pS,pE)
-                        --newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
-                        --newTree = BranchFamily (end, newPt) []
-
-                    in
-                    -- prepend newTree to children of Branch family
-                    ( {model | trees = newTrees{-BranchFamily (start, end) (newTree :: children) :: t-}, seed = newSeed1, time = time}, Cmd.none )
-
-
+            ( {model | trees = newTrees{-BranchFamily (start, end) (newTree :: children) :: t-}, seed = newSeed, treeHeight = newHeight, time = time}, Cmd.none )
                 -- branching off of height = 0
 
-                _ -> Debug.crash "TODO"
         Click pos ->
           {model | mousePos = pos} ! []
 
