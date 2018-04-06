@@ -187,8 +187,8 @@ addBranch seed t =
                 log = Debug.log "added Branch to tree (tree not yet updated)" t
 
             in
-            BranchFamily (start, end) (newTree :: children)
-
+            newTree
+            --BranchFamily (start, end) (newTree :: children)
 
 insertBranch : Int -> Seed -> Tree -> (Int, Tree)
 insertBranch insH seed t = 
@@ -199,8 +199,9 @@ insertBranch insH seed t =
                 then 
                     let
                         log = Debug.log "inserting to end" insH
+                        newTree = addBranch seed t
                     in
-                    (0, addBranch seed t)
+                    (0, BranchFamily (start, end) (newTree :: children) )
             else -- not at branch level
                 case children of
                     [] -> 
@@ -208,13 +209,13 @@ insertBranch insH seed t =
                             newTree = addBranch seed t 
                             log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
                         in 
-                        (insH, newTree)
+                        (insH, BranchFamily (start, end) (newTree :: children))
 
                     _ -> 
                        let 
                             (randFloat, newSeed) = (Random.step floatGenerator seed)
                             treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
-                            (aboveH, newChildren) = chooseRoot treeNum insH newSeed children []
+                            (aboveH, newChildren) = chooseRoot treeNum (insH-1) newSeed children []
                             logT = Debug.log "tree is" t
                             logC = Debug.log "children are" children
                             logLen = Debug.log "length children are" (List.length children)
