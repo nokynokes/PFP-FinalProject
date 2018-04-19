@@ -164,10 +164,8 @@ view : Model -> Html Msg
 view model =
     let
         (h, w) = getWindowSize model
-        scales = ((toFloat h)/2 , (toFloat w)/2)
+        -- scales = ((toFloat h)/2 , (toFloat w)/2)
+        scales = (1.0,1.0)
         trees = getBranches model.trees scales []
     in
-      Html.div []
-          [
-              toHtml <| Collage.collage h w trees
-          ]
+        toHtml <| color black <| container h w middle <| Collage.collage h w trees
