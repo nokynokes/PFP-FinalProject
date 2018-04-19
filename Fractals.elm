@@ -30,8 +30,10 @@ type alias Point = { x:Float, y:Float }
 --type alias Vector = (Angle, Magnitude)
 --type alias Branch = (Point, Vector)
 type alias Branch = (Point, Point) -- (start, end)
+type alias Height = Int
 
 type Tree = Empty | BranchFamily Branch (List Tree)
+type Root = TreeRoot Height Branch (List Tree)
 
 type alias Model =
     {
@@ -39,9 +41,7 @@ type alias Model =
         treeHeight : Int, --Eventually a List Int
         window: Window.Size,
         seed : Seed,
-        time : Time,
-        mousePos: Mouse.Position
-
+        time : Time
     }
 
 type Msg =
@@ -75,8 +75,7 @@ initialModel =
         treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
-        time = 0.0,
-        mousePos = {x = 0, y = 0}
+        time = 0.0
 
     }
 
@@ -87,7 +86,7 @@ directionGenerator =
 
 -- for help determining height of next insertion
 floatGenerator : Generator Float
-floatGenerator = 
+floatGenerator =
     float 0 1
 
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
@@ -96,15 +95,15 @@ pointGenerator =
 
 -- returns the new tree model and tree height of the newly created branch
 makeTree : Int -> Seed -> List Tree -> (Int, List Tree)
-makeTree insH seed tLst = 
+makeTree insH seed tLst =
     if insH < 0 then Debug.crash "can't have a negative insH"
 
-    else case tLst of 
-        [] -> 
+    else case tLst of
+        [] ->
             let log = Debug.log "No Trees exist to insert into" tLst in
-            (0, tLst) 
+            (0, tLst)
         (BranchFamily (start, end) children) :: _ ->
-            let 
+            let
                 (randFloat, newSeed) = (Random.step floatGenerator seed)
                 treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)
 
@@ -117,11 +116,11 @@ makeTree insH seed tLst =
 
 --chooses the root/path from the list of tree/children
 chooseRoot : Int -> Int -> Seed -> List Tree -> List Tree -> (Int, List Tree)
-chooseRoot n insH seed tLst hLst = 
+chooseRoot n insH seed tLst hLst =
     case tLst of
         [] -> Debug.crash "exceeded tree list length"
-        h :: t -> 
-            if n == 0 then 
+        h :: t ->
+            if n == 0 then
                 let (newBranchHeight, changedTree) = insertBranch insH seed h in
                 (newBranchHeight, (hLst ++ (changedTree :: t)) )
 
@@ -129,10 +128,10 @@ chooseRoot n insH seed tLst hLst =
 
 --creates branch to be inserted once correct position is identified
 addBranch : Seed -> Tree -> Tree
-addBranch seed t = 
+addBranch seed t =
     case t of
         Empty -> Debug.crash "trying to add branch to empty tree"
-        (BranchFamily (start, end) children) -> 
+        (BranchFamily (start, end) children) ->
 
             let
                 distOfParent = getDistance (start,end)
@@ -149,12 +148,12 @@ addBranch seed t =
 
 --recursively inserts branches
 insertBranch : Int -> Seed -> Tree -> (Int, Tree)
-insertBranch insH seed t = 
-    case t of 
+insertBranch insH seed t =
+    case t of
         Empty -> Debug.crash "empty tree"
-        (BranchFamily (start, end) children) -> 
+        (BranchFamily (start, end) children) ->
             if insH == 0  -- if inserting at max height of tree (increasing it's height)
-                then 
+                then
                     let
                         log = Debug.log "increasing tree height" insH
                         newTree = addBranch seed t
@@ -163,16 +162,16 @@ insertBranch insH seed t =
             else -- not at original insH level yet
                 case children of
                     -- if no children at this branch, but insH > 0, insert a branch but the maxHeight of the tree is not increased
-                    [] -> 
-                        let 
-                            newTree = addBranch seed t 
+                    [] ->
+                        let
+                            newTree = addBranch seed t
                             log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
-                        in 
+                        in
                         (insH, BranchFamily (start, end) (newTree :: children))
 
                     -- recursively insert deeper into the tree
-                    _ -> 
-                       let 
+                    _ ->
+                       let
                             (randFloat, newSeed) = (Random.step floatGenerator seed)
                             treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
                             --chooseRoot picks path and calls insertBranch
@@ -182,24 +181,24 @@ insertBranch insH seed t =
                             logC = Debug.log "children are" children
                             logLen = Debug.log "length children are" (List.length children)
                             log = Debug.log "choosing path" treeNum
-                        in 
+                        in
 
                         ( (insH - aboveH), BranchFamily (start, end) newChildren)
 
 -- took this out of update to clean it up, prep for move to new file/module
 treeUpdate : Int -> Seed -> List Tree -> (Int, Seed, List Tree)
-treeUpdate treeH seed tLst = 
+treeUpdate treeH seed tLst =
     case tLst of
         [] -> Debug.crash "wont happen"
         BranchFamily (start, end) children :: t->
-            let 
+            let
                 (randFloat, newSeed1) = (Random.step floatGenerator (seed))
                 insertHeight = round (toFloat (treeH) * randFloat)
-                                    
+
                 logH = Debug.log "(tree Height, insert height)" (treeH, insertHeight)
 
-                (branchHeight, newTrees) = makeTree insertHeight newSeed1 tLst 
-                newTreeHeight = 
+                (branchHeight, newTrees) = makeTree insertHeight newSeed1 tLst
+                newTreeHeight =
                     if branchHeight == 0 then treeH + 1
                     else treeH
             in
@@ -220,7 +219,7 @@ update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         Tick time ->
-            let 
+            let
                 seed = Random.initialSeed (round time)
                 (newHeight, newSeed, newTrees) = treeUpdate model.treeHeight seed model.trees
             in
@@ -228,7 +227,16 @@ update msg model =
             ( {model | trees = newTrees, seed = newSeed, treeHeight = newHeight, time = time}, Cmd.none )
 
         Click pos ->
-          {model | mousePos = pos} ! []
+          let
+            (h, w) = getWindowSize model
+            offsets = ((toFloat w)/2, (toFloat h)/2)
+            start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+            end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+            (startp, endp) = translateCoords (start,end) offsets
+          in
+            { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+
+
 
 
 
@@ -245,8 +253,7 @@ getWindowSize m =
     (m.window.height, m.window.width)
 
 makeBranch : Branch -> Form
-makeBranch (start, end) =
-
+makeBranch (start, end)=
    Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y))
 
 getBranches : List Tree -> List Form -> List Form
@@ -256,18 +263,24 @@ getBranches t_lst f_lst =
         (BranchFamily (s1, e1) c1) :: t1 ->
             case c1 of
                 [] -> getBranches t1 ( (makeBranch (s1, e1)) :: f_lst)
-                BranchFamily _ _ :: _ -> (getBranches c1  ( (makeBranch (s1, e1)) :: f_lst )) |> getBranches t1
+                BranchFamily _ _ :: _ -> (getBranches c1 ( (makeBranch (s1, e1)) :: f_lst )) |> getBranches t1
                 _ -> Debug.crash "Shouldn't get here"
         _ -> Debug.crash "Shouldn't get here"
+
+
+-- allowedToGrow : Int -> Int -> Bool
+-- allowedToGrow yBound yMouse =
+--   round (toFloat (yBound) * 0.25) >= yMouse
+
+translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
+translateCoords (start, end) (offsetX,offsetY) =
+  ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
+
 
 view : Model -> Html Msg
 view model =
     let
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
-        mouse = model.mousePos
     in
-      Html.div []
-          [
-              toHtml <| Collage.collage h w trees
-          ]
+        toHtml <| color black <| Collage.collage w h trees
