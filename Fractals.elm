@@ -35,7 +35,6 @@ type alias Model =
         window: Window.Size,
         seed : Seed,
         time : Time
-
     }
 
 type Msg =
@@ -118,10 +117,13 @@ update msg model =
                 _ -> Debug.crash "TODO"
         Click pos ->
           let
+            (h, w) = getWindowSize model
+            offsets = ((toFloat w)/2, (toFloat h)/2)
             start = {x = (toFloat pos.x), y = (toFloat pos.y)}
-            end = {x = (toFloat pos.x), y = (toFloat (pos.y + 40))}
+            end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+            (startp, endp) = translateCoords (start,end) offsets
           in
-            { model | trees = (BranchFamily (start,end) []) :: model.trees } ! []
+            { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
 
 
 
@@ -139,19 +141,18 @@ getWindowSize : Model -> (Int, Int)
 getWindowSize m =
     (m.window.height, m.window.width)
 
-makeBranch : Branch -> (Float, Float) -> Form
-makeBranch (start, end) (sX, sY) =
+makeBranch : Branch -> Form
+makeBranch (start, end)=
+   Collage.traced (Collage.solid blue) (Collage.segment (start.x, start.y) (end.x, end.y))
 
-   Collage.traced (Collage.solid blue) (Collage.segment (start.x * sX, start.y * sY) (end.x * sX, end.y * sY))
-
-getBranches : List Tree -> (Float, Float) -> List Form -> List Form
-getBranches t_lst scales f_lst =
+getBranches : List Tree -> List Form -> List Form
+getBranches t_lst f_lst =
     case t_lst of
         [] -> f_lst
         (BranchFamily (s1, e1) c1) :: t1 ->
             case c1 of
-                [] -> getBranches t1 scales ( (makeBranch (s1, e1) scales) :: f_lst)
-                BranchFamily _ _ :: _ -> (getBranches c1 scales ( (makeBranch (s1, e1) scales) :: f_lst )) |> getBranches t1 scales
+                [] -> getBranches t1 ( (makeBranch (s1, e1)) :: f_lst)
+                BranchFamily _ _ :: _ -> (getBranches c1 ( (makeBranch (s1, e1)) :: f_lst )) |> getBranches t1
                 _ -> Debug.crash "Shouldn't get here"
         _ -> Debug.crash "Shouldn't get here"
 
@@ -160,12 +161,15 @@ allowedToGrow : Int -> Int -> Bool
 allowedToGrow yBound yMouse =
   round (toFloat (yBound) * 0.25) >= yMouse
 
+translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
+translateCoords (start, end) (offsetX,offsetY) =
+  ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
+
+
 view : Model -> Html Msg
 view model =
     let
         (h, w) = getWindowSize model
-        -- scales = ((toFloat h)/2 , (toFloat w)/2)
-        scales = (1.0,1.0)
-        trees = getBranches model.trees scales []
+        trees = getBranches model.trees []
     in
-        toHtml <| color black <| container h w middle <| Collage.collage h w trees
+        toHtml <| color black <| container w h topLeft <| Collage.collage w h trees
