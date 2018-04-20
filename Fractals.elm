@@ -234,7 +234,9 @@ update msg model =
             end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
             (startp, endp) = translateCoords (start,end) offsets
           in
-            { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+            if startp.y <= (toFloat h)/4
+            then { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+            else model ! []
 
 
 
@@ -268,14 +270,17 @@ getBranches t_lst f_lst =
         _ -> Debug.crash "Shouldn't get here"
 
 
--- allowedToGrow : Int -> Int -> Bool
--- allowedToGrow yBound yMouse =
---   round (toFloat (yBound) * 0.25) >= yMouse
+allowedToGrow : Float -> Float -> Bool
+allowedToGrow yBound yMouse = yMouse <= (yBound/4)
+
 
 translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
 translateCoords (start, end) (offsetX,offsetY) =
   ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
 
+lineBound : Float -> Float -> Form
+lineBound x y =
+  Collage.traced (Collage.solid brown) (Collage.segment (-x, -y) (x, -y))
 
 view : Model -> Html Msg
 view model =
@@ -283,4 +288,4 @@ view model =
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
     in
-        toHtml <| color black <| Collage.collage w h trees
+        toHtml <| color black <| Collage.collage w h ((lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees)
