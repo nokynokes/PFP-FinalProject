@@ -123,8 +123,14 @@ makeTree seed tLst =
 --chooses the root/path from the list of tree/children
 
 
-chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
+--chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
+chooseRoot : Int -> Seed -> Tree -> Tree
 chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (not explored), head of list ()
+    let 
+        BranchFamily _ _ children = t
+        pickRoot : Int -> Seed -> List Tree -> List Tree
+        pickRoot = n seed tLst hLst
+    in
     case tLst of
         [] -> Debug.crash "exceeded tree list length"
         treeHead :: t ->
@@ -189,7 +195,7 @@ insertBranch insH seed t =
                             newTree = addBranch seed t
                             log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
                         in
-                        (1, BranchFamily 1 (start, end) (newTree :: children))
+                        (1, BranchFamily 1 (start, end) (newTree :: children)) --[newTree]
 
                     -- recursively insert deeper into the tree
                     _ ->
