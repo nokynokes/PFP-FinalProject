@@ -234,7 +234,7 @@ update msg model =
             end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
             (startp, endp) = translateCoords (start,end) offsets
           in
-            if startp.y <= (toFloat h)/4
+            if startp.y <= -(toFloat h)/4
             then { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
             else model ! []
 
