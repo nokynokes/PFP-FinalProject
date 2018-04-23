@@ -4,6 +4,7 @@ module Fractals exposing (main)
 import Random exposing (Generator, Seed, map2, float, int)
 import Time exposing (Time, second, millisecond)
 import Html exposing (Html, Attribute)
+import Html.Events exposing (onClick)
 import Html.Attributes exposing (style)
 import Element exposing (..)
 import Collage exposing (..)
@@ -32,22 +33,25 @@ type alias Point = { x:Float, y:Float }
 type alias Branch = (Point, Point) -- (start, end)
 type alias Height = Int
 
+type Mode = Spawn | Destroy
 type Tree = Empty | BranchFamily Branch (List Tree)
 type Root = TreeRoot Height Branch (List Tree)
 
 type alias Model =
     {
-        trees : List Tree,
-        treeHeight : Int, --Eventually a List Int
-        window: Window.Size,
-        seed : Seed,
-        time : Time
+        trees : List Tree ,
+        treeHeight : Int , --Eventually a List Int
+        window: Window.Size ,
+        seed : Seed ,
+        time : Time ,
+        mode : Mode
     }
 
 type Msg =
   SizeUpdated Size
   | Tick Time
   | Click Mouse.Position
+  | SwitchMode Mode
 
 init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
@@ -75,7 +79,8 @@ initialModel =
         treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
-        time = 0.0
+        time = 0.0,
+        mode = Spawn
 
     }
 
@@ -217,6 +222,7 @@ getDistance (p1, p2) =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
+        SwitchMode newMode -> {model | mode = newMode } ! []
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         Tick time ->
             let
@@ -227,19 +233,25 @@ update msg model =
             ( {model | trees = newTrees, seed = newSeed, treeHeight = newHeight, time = time}, Cmd.none )
 
         Click pos ->
-          let
-            (h, w) = getWindowSize model
-            offsets = ((toFloat w)/2, (toFloat h)/2)
-            start = {x = (toFloat pos.x), y = (toFloat pos.y)}
-            end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
-            (startp, endp) = translateCoords (start,end) offsets
-          in
-            if startp.y <= -(toFloat h)/4
-            then { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
-            else model ! []
+          case model.mode of
+            Spawn -> spawnTree pos model
+            Destroy -> model ! [] --TODO
 
 
 
+
+spawnTree : Mouse.Position -> Model -> (Model, Cmd Msg)
+spawnTree pos model =
+    let
+      (h, w) = getWindowSize model
+      offsets = ((toFloat w)/2, (toFloat h)/2)
+      start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+      end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+      (startp, endp) = translateCoords (start,end) offsets
+    in
+      if startp.y <= -(toFloat h)/4
+      then { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+      else model ! []
 
 
 subscriptions : Model -> Sub Msg
@@ -270,10 +282,6 @@ getBranches t_lst f_lst =
         _ -> Debug.crash "Shouldn't get here"
 
 
-allowedToGrow : Float -> Float -> Bool
-allowedToGrow yBound yMouse = yMouse <= (yBound/4)
-
-
 translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
 translateCoords (start, end) (offsetX,offsetY) =
   ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
@@ -288,4 +296,9 @@ view model =
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
     in
-        toHtml <| color black <| Collage.collage w h ((lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees)
+        Html.div []
+          [
+            Html.button [onClick <| SwitchMode Spawn] [Html.text "Spawn"]
+            , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
+            , toHtml <| color black <| Collage.collage w h ((lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees)
+          ]
