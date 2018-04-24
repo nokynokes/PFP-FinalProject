@@ -290,6 +290,9 @@ lineBound : Float -> Float -> Form
 lineBound x y =
   Collage.traced (Collage.solid brown) (Collage.segment (-x, -y) (x, -y))
 
+sunImage : (Float, Float) -> Form
+sunImage pos = image 250 200 "sun.gif" |> toForm |> move pos
+
 view : Model -> Html Msg
 view model =
     let
@@ -300,5 +303,8 @@ view model =
           [
             Html.button [onClick <| SwitchMode Spawn] [Html.text "Spawn"]
             , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
-            , toHtml <| color black <| Collage.collage w h ((lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees)
+            , case model.mode of
+                Spawn -> toHtml <| color black <| Collage.collage w h <| (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+                Destroy -> toHtml <| color black <| Collage.collage w h <| (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+
           ]
