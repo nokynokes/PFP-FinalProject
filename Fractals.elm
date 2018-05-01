@@ -39,6 +39,7 @@ type Tree = BranchFamily Height Branch (List Tree)
 type alias Model =
     {
         trees : List Tree,
+        growFactor : Float,
         --treeHeight : Int, --Eventually a List Int
         window: Window.Size,
         seed : Seed,
@@ -71,6 +72,7 @@ initialModel : Model
 initialModel =
     {
         trees = [],
+        growFactor = 1.05,
             {-
             [
                 BranchFamily 0 ({x = 100, y = 100}, {x = 100, y = 200}) [] 
@@ -134,8 +136,8 @@ getTallestTree ht tLst =
          
 
 --gets a random root from the list and chooses which tree to branch from, as well as randomly choosing the insert height based on the height of that tree
-chooseRoot : Int -> Seed -> List Tree -> List Tree
-chooseRoot n seed tLst = 
+chooseRoot : Int -> Float -> Seed -> List Tree -> List Tree
+chooseRoot n growFactor seed tLst = 
     case tLst of
         [] -> [] -- nothing to add a branch to
          
@@ -144,16 +146,29 @@ chooseRoot n seed tLst =
                 let 
                     (randFloat, newSeed) = (Random.step floatGenerator (seed)) 
                     insH = round (toFloat (ht) * randFloat)
-                    updatedRoot = insertBranch insH newSeed (BranchFamily ht br lst1) 
+                    updatedRoot = insertBranch insH growFactor newSeed (BranchFamily ht br lst1)
                     --log = Debug.log "updated root is" updatedRoot
                 in
                 updatedRoot :: t
-            else BranchFamily ht br lst1 :: chooseRoot (n-1) seed t
+            else BranchFamily ht br lst1 :: chooseRoot (n-1) growFactor seed t
+
+
+-- grows the branch by some epsilon
+growBranch : Float -> Tree -> Tree
+growBranch epsilon (BranchFamily ht (start, end) lst) = 
+    let
+        mag = getDistance (start, end)
+        (dx, dy) = (end.x - start.x, end.y - start.y)  
+        end_ = { x = start.x + (epsilon * dx), y = start.y + (epsilon * dy) }
+    in
+    BranchFamily ht (start, end_) lst
+
+        
 
 
 --- ***** Issue somewhere with tree growing exclusively to the left, fix this!!! ******
-chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree ---> List Tree
-chooseTreeBranch n insH seed tLst =
+chooseTreeBranch : Int -> Int -> Float -> Seed -> List Tree -> List Tree ---> List Tree
+chooseTreeBranch n insH growFactor seed tLst =
     case tLst of
         [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
         h :: t -> 
@@ -163,16 +178,17 @@ chooseTreeBranch n insH seed tLst =
             if n == 0 then 
                 let 
                     log = Debug.log "chose child tree =" h
-                    newLst = (insertBranch insH seed h) :: t 
+                    newLst = (insertBranch insH growFactor seed h) :: t 
                 in
                 --hLst ++ newLst
                 newLst
             else
-                h :: chooseTreeBranch (n-1) insH seed t --(h :: hLst)
+                h :: chooseTreeBranch (n-1) insH growFactor seed t --(h :: hLst)
 
-insertBranch : Int -> Seed -> Tree -> Tree 
-insertBranch insH seed tree = 
-    if insH == 0 then  addBranchPair seed tree -- new version of tree
+insertBranch : Int -> Float -> Seed -> Tree -> Tree 
+insertBranch insH growFactor seed tree = 
+    growBranch growFactor <|
+    if insH == 0 then addBranchPair seed tree -- new version of tree
     else case tree of
         (BranchFamily ht br tLst) -> case tLst of
             [] -> addBranchPair seed (BranchFamily 1 br tLst) -- empty parent list -> makeBranch here and increment height from 0 to 1
@@ -181,7 +197,7 @@ insertBranch insH seed tree =
                     (newSeed, treeNum) = getTreeNumber seed tLst
                     logLst = Debug.log "tLst is w/Length" (List.length tLst, tLst)
                     logNum = Debug.log "treeNum for tLst is" treeNum
-                    newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst --[]
+                    newLst = chooseTreeBranch treeNum (insH-1) growFactor newSeed tLst --[]
                     maxHt = (getTallestTree 0 newLst) + 1
                     --log = Debug.log "maxht for tree is" (tree, maxHt)
                 in 
@@ -250,14 +266,14 @@ addBranchPair seed t =
             else BranchFamily 1 (start, end) (leftTree :: rightTree :: []) -- if treeH == 0, then child tree list must be empty
 
 
-treeUpdate : Seed -> List Tree -> (Seed, List Tree)
-treeUpdate seed tLst =
+treeUpdate : Float -> Seed -> List Tree -> (Seed, List Tree)
+treeUpdate growFactor seed tLst =
     case tLst of
         [] -> (seed, [])
         BranchFamily treeH (start, end) children :: t->
             let 
                 (newSeed, rootNum) = getTreeNumber seed tLst
-                newTrees = chooseRoot rootNum newSeed tLst
+                newTrees = chooseRoot rootNum growFactor newSeed tLst
             in
                 {-
                 newTreeHeight =
@@ -276,7 +292,7 @@ update msg model =
             let
                 seed = Random.initialSeed (round time)
                 -- old(newHeight, newSeed, newTrees) = treeUpdate model.treeHeight seed model.trees
-                (newSeed, newTrees) = treeUpdate seed model.trees
+                (newSeed, newTrees) = treeUpdate model.growFactor seed model.trees
             in
 
             ( {model | trees = newTrees, seed = newSeed, {-treeHeight = newHeight,-} time = time}, Cmd.none )
