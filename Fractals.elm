@@ -33,12 +33,13 @@ type alias Branch = (Point, Point) -- (start, end)
 type alias Height = Int
 
 type Tree = Empty | BranchFamily Height Branch (List Tree)
+
 --type Root = TreeRoot Height Branch (List Tree)
 
 type alias Model =
     {
         trees : List Tree,
-        treeHeight : Int, --Eventually a List Int
+        --treeHeight : Int, --Eventually a List Int
         window: Window.Size,
         seed : Seed,
         time : Time
@@ -69,13 +70,15 @@ initialChildren =
 initialModel : Model
 initialModel =
     {
-        trees =
+        trees = [],
+            {-
             [
                 BranchFamily 0 ({x = 100, y = 100}, {x = 100, y = 200}) [] 
                 --BranchFamily ({x = 100, y = 100}, {x = 100, y = 200})  []
                 -- This will be it when converted to radians BranchFamily ({x=100, y=100}, ((degree 90), 100))
             ],
-        treeHeight = 0,
+            -}
+        --treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
         time = 0.0
@@ -94,58 +97,62 @@ floatGenerator =
 
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
 pointGenerator =
-  map2 Point (float 0.2 0.8) (float 0.2 0.8)
+  map2 Point (float 0.3 0.6) (float 0.3 0.6)
 
 -- returns the new tree model and tree height of the newly created branch
 
 
-makeTree : Seed -> List Tree -> List Tree--(Seed, List Root)
-makeTree seed tLst =
-    --if insH < 0 then Debug.crash "can't have a negative insH"
+-- took this out of update to clean it up, prep for move to new file/module
 
+
+getTreeNumber : Seed -> List Tree -> (Seed, Int)
+getTreeNumber seed tLst = 
+    let
+        (randFloat, newSeed) = (Random.step floatGenerator (seed))
+        treeNum = round ( randFloat) * ( (List.length tLst) - 1)
+    in 
+    (newSeed, treeNum)
+
+--gets a random root from the list and chooses which tree to branch from, as well as randomly choosing the insert height based on the height of that tree
+chooseRoot : Int -> Seed -> List Tree -> List Tree
+chooseRoot n seed tLst = 
     case tLst of
-        [] ->
-            let log = Debug.log "No Trees exist to insert into" tLst in
-            (0, tLst)
-        _ :: _ ->
-            let
-                (randFloat, newSeed) = (Random.step floatGenerator seed)
-                treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)  
-                -- picks a random element in the root list to insert into on a tick
-
-                log = Debug.log "root path chosen is" treeNum
-
-            in
-            chooseRoot treeNum newSeed tLst []
-
-        _ -> Debug.crash "shouldn't reach here"
-
---chooses the root/path from the list of tree/children
-
-
---chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
-chooseRoot : Int -> Seed -> Tree -> Tree
-chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (not explored), head of list ()
-    let 
-        BranchFamily _ _ children = t
-        pickRoot : Int -> Seed -> List Tree -> List Tree
-        pickRoot = n seed tLst hLst
-    in
-    case tLst of
-        [] -> Debug.crash "exceeded tree list length"
-        treeHead :: t ->
+        [] -> [] -- nothing to add a branch to
+         
+        (BranchFamily ht br lst1) :: t -> 
             if n == 0 then
-                let
-                    (BranchFamily treeH _ _ ) = treeHead  
-                    (randFloat, newSeed1) = (Random.step floatGenerator (seed))
-                    insertHeight = round (toFloat (treeH) * randFloat)
-                    (newRootHeight, newRoot) = insertBranch insertHeight seed treeHead
+                let 
+                    (randFloat, newSeed) = (Random.step floatGenerator (seed)) 
+                    insH = round (toFloat (ht) * randFloat)
                 in
-                
-                hLst ++ ( newRoot :: t)  
+                insertBranch insH newSeed (BranchFamily ht br lst1) :: t
+            else BranchFamily ht br lst1 :: chooseRoot (n-1) seed t
+
+        _ -> Debug.crash "empty case"
+
+chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree
+chooseTreeBranch n insH seed tLst =
+    case tLst of
+        [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
+        h :: t -> 
+            if n == 0 then insertBranch insH seed h :: t
+            else
+                chooseTreeBranch (n-1) insH seed tLst
+
+insertBranch : Int -> Seed -> Tree -> Tree 
+insertBranch insH seed tree = 
+    if insH == 0 then  addBranch seed tree --Debug.crash "makeBranch here"
+    else case tree of
+        Empty -> Debug.crash "shouldn't get an empty tree"
+        (BranchFamily ht br tLst) -> case tLst of
+            [] -> addBranch seed (BranchFamily ht br tLst) --Debug.crash "empty parent list makeBranch here and increment height"
+            h :: t -> 
+                let
+                    (newSeed, treeNum) = getTreeNumber seed tLst
+                in 
+                BranchFamily ht br (chooseTreeBranch treeNum (insH-1) newSeed tLst)
 
 
-            else chooseRoot (n-1) seed t (treeHead :: hLst)
 --creates branch to be inserted once correct position is identified
 addBranch : Seed -> Tree -> Tree
 addBranch seed t =
@@ -163,83 +170,25 @@ addBranch seed t =
                 log = Debug.log "added Branch to tree (tree not yet updated)" t
 
             in
-            newTree
-            --BranchFamily (start, end) (newTree :: children)
-
---recursively inserts branches
-
-
-insertBranch : Int -> Seed -> Tree -> (Int, Tree)
-insertBranch insH seed t =
-    case t of
-        Empty -> Debug.crash "empty tree"
-        (BranchFamily treeH (start, end) children) ->
-            if insH == 0  -- if inserting at max height of tree (increasing it's height)
-                then
-                    let
-                        log = Debug.log "increasing tree height" insH
-                        newTree = addBranch seed t
-                        newChildren = newTree :: children
-                    in
-                    
-                    if treeH == 0 then 
-                        (1, (BranchFamily 1 (start, end) newChildren ))
-                    else
-                        (treeH, BranchFamily treeH (start, end) newChildren ) 
-
-            else -- not at original insH level yet
-                case children of
-                    -- if no children at this branch, but insH > 0, insert a branch and increase the maxHeight of that tree 
-                    [] ->
-                        let
-                            newTree = addBranch seed t
-                            log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
-                        in
-                        (1, BranchFamily 1 (start, end) (newTree :: children)) --[newTree]
-
-                    -- recursively insert deeper into the tree
-                    _ ->
-                       let
-                            (randFloat, newSeed) = (Random.step floatGenerator seed)
-                            treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
-                            --chooseRoot picks path and calls insertBranch
-                            (aboveH, newChildren) = chooseRoot treeNum (insH-1) newSeed children []
-                            
-                            --debugging logs
-                            logT = Debug.log "tree is" t
-                            logC = Debug.log "children are" children
-                            logLen = Debug.log "length children are" (List.length children)
-                            log = Debug.log "choosing path" treeNum
-                        in
-                        if aboveH + 1 > treeH then -- if treeHeight was increased (can only be changed by 1 at a time)
-                            (treeH + 1, BranchFamily (treeH + 1) (start, end) newChildren)
-                        else -- path changed not affecting treeH
-                            (treeH, BranchFamily treeH (start, end) newChildren)
-
-                        --( (insH - aboveH), BranchFamily (start, end) newChildren)
-
--- took this out of update to clean it up, prep for move to new file/module
+            if treeH > 0 then BranchFamily treeH (start, end) (newTree :: children) -- if tLst is not empty, just append newTree
+            else BranchFamily 1 (start, end) [newTree] -- if treeH == 0, then child tree list must be empty
 
 
 treeUpdate : Seed -> List Tree -> (Seed, List Tree)
 treeUpdate seed tLst =
     case tLst of
-        [] -> Debug.crash "wont happen"
+        [] -> (seed, [])
         BranchFamily treeH (start, end) children :: t->
-            let
-                --(randFloat, newSeed1) = (Random.step floatGenerator (seed))
-                --insertHeight = round (toFloat (treeH) * randFloat)
-
-                --logH = Debug.log "(tree Height, insert height)" (treeH, insertHeight)
-
-                (newSeed1, newTrees) = makeTree seed tLst
+            let 
+                (newSeed, rootNum) = getTreeNumber seed tLst
+                newTrees = chooseRoot rootNum newSeed tLst
+            in
                 {-
                 newTreeHeight =
                     if branchHeightDiff == 0 then treeH + 1
                     else treeH
                 -}
-            in
-            (newSeed1, newTrees)
+            (newSeed, newTrees)
 
         _ -> Debug.crash "TODO"
 getDistance : Branch -> Float
@@ -264,14 +213,15 @@ update msg model =
             ( {model | trees = newTrees, seed = newSeed, {-treeHeight = newHeight,-} time = time}, Cmd.none )
 
         Click pos ->
-          let
-            (h, w) = getWindowSize model
-            offsets = ((toFloat w)/2, (toFloat h)/2)
-            start = {x = (toFloat pos.x), y = (toFloat pos.y)}
-            end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
-            (startp, endp) = translateCoords (start,end) offsets
-          in
-            { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+            let
+                (h, w) = getWindowSize model
+                offsets = ((toFloat w)/2, (toFloat h)/2)
+                start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+                end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+                (startp, endp) = translateCoords (start,end) offsets
+            in
+                --{ model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
+            ( { model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees }, Cmd.none )
 
 
 
@@ -323,6 +273,7 @@ view model =
         toHtml <| color black <| Collage.collage w h trees
 
 
+------------------------------------------------------------------
 
 {-
 makeTreeOld : Int -> Seed -> List Tree -> (Int, List Tree)
@@ -419,3 +370,132 @@ chooseRootOld n insH seed tLst hLst =
             else chooseRoot (n-1) insH seed t (h :: hLst)
 
 -}
+
+
+------------------------------------------------------------------
+
+{-
+makeTree : Seed -> List Tree -> List Tree--(Seed, List Root)
+makeTree seed tLst =
+    --if insH < 0 then Debug.crash "can't have a negative insH"
+
+    case tLst of
+        [] ->
+            let log = Debug.log "No Trees exist to insert into" tLst in
+            (0, tLst)
+        _ :: _ ->
+            let
+                (randFloat, newSeed) = (Random.step floatGenerator seed)
+                treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)  
+                -- picks a random element in the root list to insert into on a tick
+
+                log = Debug.log "root path chosen is" treeNum
+
+            in
+            chooseRoot treeNum newSeed tLst []
+
+        _ -> Debug.crash "shouldn't reach here"
+
+--chooses the root/path from the list of tree/children
+
+
+--chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
+chooseRoot : Int -> Int -> Seed -> List Tree -> List Tree -> List Tree
+chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (not explored), head of list ()
+    {-
+    let 
+        BranchFamily _ _ children = t
+        pickRoot : Int -> Seed -> List Tree -> List Tree
+        pickRoot = n seed tLst hLst
+    in
+    -}
+    case tLst of
+        [] -> Debug.crash "exceeded tree list length"
+        treeHead :: t ->
+            if n == 0 then
+                let
+                    (BranchFamily treeH _ _ ) = treeHead  
+                    (randFloat, newSeed1) = (Random.step floatGenerator (seed))
+                    insertHeight = round (toFloat (treeH) * randFloat)
+                    (newRootHeight, newRoot) = insertBranch insertHeight seed treeHead
+                in
+                
+                hLst ++ ( newRoot :: t)  
+
+
+            else chooseRoot (n-1) seed t (treeHead :: hLst)
+
+--creates branch to be inserted once correct position is identified
+addBranch : Seed -> Tree -> Tree
+addBranch seed t =
+    case t of
+        Empty -> Debug.crash "trying to add branch to empty tree"
+        (BranchFamily treeH (start, end) children) ->
+
+            let
+                distOfParent = getDistance (start,end)
+                (power, newSeed1) = Random.step directionGenerator seed
+                direction = -1^power
+                (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
+                newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
+                newTree = BranchFamily 0 (end, newPt) []
+                log = Debug.log "added Branch to tree (tree not yet updated)" t
+
+            in
+            newTree
+            --BranchFamily (start, end) (newTree :: children)
+
+--recursively inserts branches
+insertBranch : Int -> Seed -> Tree -> (Int, Tree)
+insertBranch insH seed t =
+    case t of
+        Empty -> Debug.crash "empty tree"
+        (BranchFamily treeH (start, end) children) ->
+            if insH == 0  -- if inserting at max height of tree (increasing it's height)
+                then
+                    let
+                        log = Debug.log "increasing tree height" insH
+                        newTree = addBranch seed t
+                        newChildren = newTree :: children
+                    in
+                    
+                    if treeH == 0 then 
+                        (1, (BranchFamily 1 (start, end) newChildren ))
+                    else
+                        (treeH, BranchFamily treeH (start, end) newChildren ) 
+
+            else -- not at original insH level yet
+                case children of
+                    -- if no children at this branch, but insH > 0, insert a branch and increase the maxHeight of that tree 
+                    [] ->
+                        let
+                            newTree = addBranch seed t
+                            log = Debug.log "still more insert height, but inserting tree at height" (insH + 1)
+                        in
+                        (1, BranchFamily 1 (start, end) (newTree :: children)) --[newTree]
+
+                    -- recursively insert deeper into the tree
+                    _ ->
+                       let
+                            (randFloat, newSeed) = (Random.step floatGenerator seed)
+                            treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
+                            --chooseRoot picks path and calls insertBranch
+                            (aboveH, newChildren) = chooseRoot treeNum newSeed (insH-1) children []
+                            
+                            --debugging logs
+                            logT = Debug.log "tree is" t
+                            logC = Debug.log "children are" children
+                            logLen = Debug.log "length children are" (List.length children)
+                            log = Debug.log "choosing path" treeNum
+                        in
+                        if aboveH + 1 > treeH then -- if treeHeight was increased (can only be changed by 1 at a time)
+                            (treeH + 1, BranchFamily (treeH + 1) (start, end) newChildren)
+                        else -- path changed not affecting treeH
+                            (treeH, BranchFamily treeH (start, end) newChildren)
+
+                        --( (insH - aboveH), BranchFamily (start, end) newChildren)
+
+-}
+
+
+
