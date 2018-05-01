@@ -95,12 +95,22 @@ floatGenerator : Generator Float
 floatGenerator =
     float 0 1
 
+startFractionGenerator : Generator Float
+startFractionGenerator = 
+    float 0.5 0.9
+
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
 pointGenerator =
   map2 Point (float 0.3 0.6) (float 0.3 0.6)
 
--- returns the new tree model and tree height of the newly created branch
 
+getDistance : Branch -> Float
+getDistance (p1, p2) =
+  let
+    xdiff = (p2.x - p1.x)^2
+    ydiff = (p2.y - p1.y)^2
+  in
+    sqrt (xdiff + ydiff)
 
 -- took this out of update to clean it up, prep for move to new file/module
 
@@ -109,7 +119,10 @@ getTreeNumber : Seed -> List Tree -> (Seed, Int)
 getTreeNumber seed tLst = 
     let
         (randFloat, newSeed) = (Random.step floatGenerator (seed))
-        treeNum = round ( randFloat) * ( (List.length tLst) - 1)
+        --log = Debug.log "list has length" (List.length tLst)
+        --logF = Debug.log "rand float is" randFloat
+        listLen = toFloat ( List.length tLst) - 1
+        treeNum = round ( randFloat * listLen )
     in 
     (newSeed, treeNum)
 
@@ -132,7 +145,7 @@ chooseRoot n seed tLst =
                     (randFloat, newSeed) = (Random.step floatGenerator (seed)) 
                     insH = round (toFloat (ht) * randFloat)
                     updatedRoot = insertBranch insH newSeed (BranchFamily ht br lst1) 
-                    log = Debug.log "updated root is" updatedRoot
+                    --log = Debug.log "updated root is" updatedRoot
                 in
                 updatedRoot :: t
             else BranchFamily ht br lst1 :: chooseRoot (n-1) seed t
@@ -153,39 +166,82 @@ chooseTreeBranch n insH seed tLst =
 
 insertBranch : Int -> Seed -> Tree -> Tree 
 insertBranch insH seed tree = 
-    if insH == 0 then  addBranch seed tree -- new version of tree
+    if insH == 0 then  addBranchPair seed tree -- new version of tree
     else case tree of
         (BranchFamily ht br tLst) -> case tLst of
-            [] -> addBranch seed (BranchFamily 1 br tLst) -- empty parent list -> makeBranch here and increment height from 0 to 1
+            [] -> addBranchPair seed (BranchFamily 1 br tLst) -- empty parent list -> makeBranch here and increment height from 0 to 1
             _ :: _ ->
                 let
                     (newSeed, treeNum) = getTreeNumber seed tLst
+                    logLst = Debug.log "tLst is w/Length" (List.length tLst, tLst)
+                    logNum = Debug.log "treeNum for tLst is" treeNum
                     newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst
                     maxHt = (getTallestTree 0 newLst) + 1
-                    log = Debug.log "maxht for tree is" (tree, maxHt)
+                    --log = Debug.log "maxht for tree is" (tree, maxHt)
                 in 
                 
                 BranchFamily maxHt br newLst
 
+--- gives back angle of parent direction with horizontal
+{-}
+parentDir : (Point, Point) -> Int
+parentDir (start, end) = 
+    let
+        --(dx, dy) = (end.x - start.x, end.y - start.y)
+        --scalar = dx + dy
+        --(dx_, dy_) = (dx / scalar, dy / scalar)
+    in
+-}
+
+-- takes in the float, parentAngle (in radians), magnitude, and start point and produces both endpoints
+getEndpts : Float -> Float -> Float -> (Point) -> (Point, Point)
+getEndpts flt parentAngle mag start = 
+    let
+        splitAngle = ((-200 * flt) + 245) * pi/180 -- decided want angle between 145 and 65 degrees for flts 0.5 to 0.9, respectively (in radians)
+        (lAngle, rAngle) = (parentAngle + splitAngle/2, parentAngle - splitAngle/2)
+        (ldx_scalar, ldy_scalar, rdx_scalar, rdy_scalar) = (cos lAngle, (sin lAngle), cos rAngle, (sin rAngle))
+        (lEndpt, rEndpt) = ({x = start.x + ldx_scalar * mag, y = start.y + ldy_scalar * mag}, {x = start.x + rdx_scalar * mag, y = start.y + rdy_scalar * mag})
+    in
+    (lEndpt, rEndpt)
+
 
 --creates branch to be inserted once correct position is identified
-addBranch : Seed -> Tree -> Tree
-addBranch seed t =
+addBranchPair : Seed -> Tree -> Tree
+addBranchPair seed t =
     case t of
         (BranchFamily treeH (start, end) children) ->
 
             let
                 distOfParent = getDistance (start,end)
-                (power, newSeed1) = Random.step directionGenerator seed
-                direction = -1^power
+
+                -- need angle of branch pair, and distance up the branch
+                --get float
+                (flt, newSeed) = Random.step startFractionGenerator seed
+                --get dx and dy of parent, and then use it to make start point (scale by float) of next branch pair
+                (dx, dy) = (end.x - start.x, end.y - start.y)
+
+                newStart = {x = start.x + (flt * dx), y = start.y + (flt * dy) }
+                -- get magnitude (length) of next branch pair (scale by flt, so that larger branches farther down and smaller branches near top or end of parent)
+                magnitude = (1.2 - flt) * distOfParent
+                parentAngle = atan2 dy dx
+
+                (lEndpt, rEndpt) = getEndpts flt parentAngle magnitude newStart
+
+                --(power, newSeed1) = Random.step directionGenerator seed
+                --direction = -1^power
                 (newPt_Scaling, newSeed2) = Random.step pointGenerator (seed)
-                newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
-                newTree = BranchFamily 0 (end, newPt) []
-                log = Debug.log "added Branch to tree (tree not yet updated)" t
+                --newPt = {x = ((toFloat direction) * newPt_Scaling.x * distOfParent) + end.x , y = (newPt_Scaling.y * distOfParent) + end.y}
+                --leftPt = {x = (-1 * newPt_Scaling.x * distOfParent) + newStart.x , y = (newPt_Scaling.y * distOfParent) + newStart.y}
+                leftTree = BranchFamily 0 (newStart, lEndpt) []
+                --leftTree = BranchFamily 0 (newStart, leftPt) []
+                --rightPt = {x = (newPt_Scaling.x * distOfParent) + newStart.x , y = (newPt_Scaling.y * distOfParent) + newStart.y}
+                rightTree = BranchFamily 0 (newStart, rEndpt) []
+                --rightTree = BranchFamily 0 (newStart, rightPt) []
+                --log = Debug.log "added Branch to tree (tree not yet updated)" t
 
             in
-            if treeH > 0 then BranchFamily treeH (start, end) (newTree :: children) -- if tLst is not empty, just append newTree
-            else BranchFamily 1 (start, end) [newTree] -- if treeH == 0, then child tree list must be empty
+            if treeH > 0 then BranchFamily treeH (start, end) (leftTree :: rightTree :: children) -- if tLst is not empty, just append newTree
+            else BranchFamily 1 (start, end) (leftTree :: rightTree :: []) -- if treeH == 0, then child tree list must be empty
 
 
 treeUpdate : Seed -> List Tree -> (Seed, List Tree)
@@ -204,13 +260,7 @@ treeUpdate seed tLst =
                 -}
             (newSeed, newTrees)
 
-getDistance : Branch -> Float
-getDistance (p1, p2) =
-  let
-    xdiff = (p2.x - p1.x)^2
-    ydiff = (p2.y - p1.y)^2
-  in
-    sqrt (xdiff + ydiff)
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
