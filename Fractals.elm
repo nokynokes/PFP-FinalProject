@@ -32,7 +32,7 @@ type alias Point = { x:Float, y:Float }
 type alias Branch = (Point, Point) -- (start, end)
 type alias Height = Int
 
-type Tree = Empty | BranchFamily Height Branch (List Tree)
+type Tree = BranchFamily Height Branch (List Tree)
 
 --type Root = TreeRoot Height Branch (List Tree)
 
@@ -113,6 +113,13 @@ getTreeNumber seed tLst =
     in 
     (newSeed, treeNum)
 
+getTallestTree : Int -> List Tree -> Int
+getTallestTree ht tLst = 
+    case tLst of
+        [] -> ht
+        (BranchFamily ht1 _ _)  :: t -> getTallestTree (max ht ht1) t
+         
+
 --gets a random root from the list and chooses which tree to branch from, as well as randomly choosing the insert height based on the height of that tree
 chooseRoot : Int -> Seed -> List Tree -> List Tree
 chooseRoot n seed tLst = 
@@ -124,40 +131,47 @@ chooseRoot n seed tLst =
                 let 
                     (randFloat, newSeed) = (Random.step floatGenerator (seed)) 
                     insH = round (toFloat (ht) * randFloat)
+                    updatedRoot = insertBranch insH newSeed (BranchFamily ht br lst1) 
+                    log = Debug.log "updated root is" updatedRoot
                 in
-                insertBranch insH newSeed (BranchFamily ht br lst1) :: t
+                updatedRoot :: t
             else BranchFamily ht br lst1 :: chooseRoot (n-1) seed t
 
-        _ -> Debug.crash "empty case"
 
 chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree
 chooseTreeBranch n insH seed tLst =
     case tLst of
         [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
         h :: t -> 
-            if n == 0 then insertBranch insH seed h :: t
+            if n == 0 then 
+                let 
+                    newLst = (insertBranch insH seed h) :: t 
+                in
+                newLst
             else
                 chooseTreeBranch (n-1) insH seed tLst
 
 insertBranch : Int -> Seed -> Tree -> Tree 
 insertBranch insH seed tree = 
-    if insH == 0 then  addBranch seed tree --Debug.crash "makeBranch here"
+    if insH == 0 then  addBranch seed tree -- new version of tree
     else case tree of
-        Empty -> Debug.crash "shouldn't get an empty tree"
         (BranchFamily ht br tLst) -> case tLst of
-            [] -> addBranch seed (BranchFamily ht br tLst) --Debug.crash "empty parent list makeBranch here and increment height"
-            h :: t -> 
+            [] -> addBranch seed (BranchFamily 1 br tLst) -- empty parent list -> makeBranch here and increment height from 0 to 1
+            _ :: _ ->
                 let
                     (newSeed, treeNum) = getTreeNumber seed tLst
+                    newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst
+                    maxHt = (getTallestTree 0 newLst) + 1
+                    log = Debug.log "maxht for tree is" (tree, maxHt)
                 in 
-                BranchFamily ht br (chooseTreeBranch treeNum (insH-1) newSeed tLst)
+                
+                BranchFamily maxHt br newLst
 
 
 --creates branch to be inserted once correct position is identified
 addBranch : Seed -> Tree -> Tree
 addBranch seed t =
     case t of
-        Empty -> Debug.crash "trying to add branch to empty tree"
         (BranchFamily treeH (start, end) children) ->
 
             let
@@ -190,7 +204,6 @@ treeUpdate seed tLst =
                 -}
             (newSeed, newTrees)
 
-        _ -> Debug.crash "TODO"
 getDistance : Branch -> Float
 getDistance (p1, p2) =
   let
@@ -251,8 +264,6 @@ getBranches t_lst f_lst =
             case c1 of
                 [] -> getBranches t1 ( (makeBranch (s1, e1)) :: f_lst)
                 BranchFamily _ _ _ :: _ -> (getBranches c1 ( (makeBranch (s1, e1)) :: f_lst )) |> getBranches t1
-                _ -> Debug.crash "Shouldn't get here"
-        _ -> Debug.crash "Shouldn't get here"
 
 
 -- allowedToGrow : Int -> Int -> Bool
