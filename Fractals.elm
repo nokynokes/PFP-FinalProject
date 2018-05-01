@@ -151,18 +151,24 @@ chooseRoot n seed tLst =
             else BranchFamily ht br lst1 :: chooseRoot (n-1) seed t
 
 
-chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree
+--- ***** Issue somewhere with tree growing exclusively to the left, fix this!!! ******
+chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree ---> List Tree
 chooseTreeBranch n insH seed tLst =
     case tLst of
         [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
         h :: t -> 
+            let
+                log1 = Debug.log "current treeNum = " n
+            in
             if n == 0 then 
                 let 
+                    log = Debug.log "chose child tree =" h
                     newLst = (insertBranch insH seed h) :: t 
                 in
+                --hLst ++ newLst
                 newLst
             else
-                chooseTreeBranch (n-1) insH seed tLst
+                h :: chooseTreeBranch (n-1) insH seed t --(h :: hLst)
 
 insertBranch : Int -> Seed -> Tree -> Tree 
 insertBranch insH seed tree = 
@@ -175,7 +181,7 @@ insertBranch insH seed tree =
                     (newSeed, treeNum) = getTreeNumber seed tLst
                     logLst = Debug.log "tLst is w/Length" (List.length tLst, tLst)
                     logNum = Debug.log "treeNum for tLst is" treeNum
-                    newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst
+                    newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst --[]
                     maxHt = (getTallestTree 0 newLst) + 1
                     --log = Debug.log "maxht for tree is" (tree, maxHt)
                 in 
@@ -223,7 +229,7 @@ addBranchPair seed t =
                 newStart = {x = start.x + (flt * dx), y = start.y + (flt * dy) }
                 -- get magnitude (length) of next branch pair (scale by flt, so that larger branches farther down and smaller branches near top or end of parent)
                 magnitude = (1.2 - flt) * distOfParent
-                parentAngle = atan2 dy dx
+                parentAngle = atan2 dy dx -- get parent angle in radians
 
                 (lEndpt, rEndpt) = getEndpts flt parentAngle magnitude newStart
 
