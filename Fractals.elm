@@ -4,6 +4,7 @@ module Fractals exposing (main)
 import Random exposing (Generator, Seed, map2, float, int)
 import Time exposing (Time, second, millisecond)
 import Html exposing (Html, Attribute)
+import Html.Events exposing (onClick)
 import Html.Attributes exposing (style)
 import Element exposing (..)
 import Collage exposing (..)
@@ -32,24 +33,25 @@ type alias Point = { x:Float, y:Float }
 type alias Branch = (Point, Point) -- (start, end)
 type alias Height = Int
 
-type Tree = BranchFamily Height Branch (List Tree)
-
+type Mode = Spawn | Destroy
 --type Root = TreeRoot Height Branch (List Tree)
+type Tree = BranchFamily Height Branch (List Tree)
 
 type alias Model =
     {
-        trees : List Tree,
+        trees : List Tree ,
         growFactor : Float,
-        --treeHeight : Int, --Eventually a List Int
-        window: Window.Size,
-        seed : Seed,
-        time : Time
+        window: Window.Size ,
+        seed : Seed ,
+        time : Time ,
+        mode : Mode
     }
 
 type Msg =
   SizeUpdated Size
   | Tick Time
   | Click Mouse.Position
+  | SwitchMode Mode
 
 init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
@@ -83,7 +85,8 @@ initialModel =
         --treeHeight = 0,
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
-        time = 0.0
+        time = 0.0,
+        mode = Spawn
 
     }
 
@@ -288,6 +291,7 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
+        SwitchMode newMode -> {model | mode = newMode } ! []
         Tick time ->
             let
                 seed = Random.initialSeed (round time)
@@ -298,15 +302,21 @@ update msg model =
             ( {model | trees = newTrees, seed = newSeed, {-treeHeight = newHeight,-} time = time}, Cmd.none )
 
         Click pos ->
-            let
-                (h, w) = getWindowSize model
-                offsets = ((toFloat w)/2, (toFloat h)/2)
-                start = {x = (toFloat pos.x), y = (toFloat pos.y)}
-                end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
-                (startp, endp) = translateCoords (start,end) offsets
-            in
-                --{ model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
-            ( { model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees }, Cmd.none )
+            case model.mode of
+                Spawn -> --spawnTree pos model
+                    let
+                        (h, w) = getWindowSize model
+                        offsets = ((toFloat w)/2, (toFloat h)/2)
+                        start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+                        end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+                        (startp, endp) = translateCoords (start,end) offsets
+                    in
+                    if startp.y <= -(toFloat h)/4
+                        then { model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
+                    else model ! []
+                        --{ model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
+
+                Destroy -> model ! [] --TODO
 
 
 
@@ -346,6 +356,12 @@ translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
 translateCoords (start, end) (offsetX,offsetY) =
   ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
 
+lineBound : Float -> Float -> Form
+lineBound x y =
+  Collage.traced (Collage.solid brown) (Collage.segment (-x, -y) (x, -y))
+
+sunImage : (Float, Float) -> Form
+sunImage pos = image 250 200 "sun.gif" |> toForm |> move pos
 
 view : Model -> Html Msg
 view model =
@@ -353,7 +369,25 @@ view model =
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
     in
+        Html.div []
+          [
+            Html.button [onClick <| SwitchMode Spawn] [Html.text "Spawn"]
+            , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
+            , case model.mode of
+                Spawn -> toHtml <| color black <| Collage.collage w h <| (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+                Destroy -> toHtml <| color black <| Collage.collage w h <| (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+
+          ]
+
+{-
+view : Model -> Html Msg
+view model =
+    let
+        (h, w) = getWindowSize model
+        trees = getBranches model.trees []
+    in
         toHtml <| color black <| Collage.collage w h trees
+-}
 
 
 ------------------------------------------------------------------
@@ -467,6 +501,7 @@ makeTree seed tLst =
             let log = Debug.log "No Trees exist to insert into" tLst in
             (0, tLst)
         _ :: _ ->
+>>>>>>> 889d20c257a8d6c94439e63b3b93b81726130d15
             let
                 (randFloat, newSeed) = (Random.step floatGenerator seed)
                 treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)  
@@ -479,7 +514,7 @@ makeTree seed tLst =
 
         _ -> Debug.crash "shouldn't reach here"
 
---chooses the root/path from the list of tree/children
+
 
 
 --chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
@@ -505,8 +540,20 @@ chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (no
                 
                 hLst ++ ( newRoot :: t)  
 
+----- spawntree commented out
+spawnTree : Mouse.Position -> Model -> (Model, Cmd Msg)
+spawnTree pos model =
+    let
+      (h, w) = getWindowSize model
+      offsets = ((toFloat w)/2, (toFloat h)/2)
+      start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+      end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+      (startp, endp) = translateCoords (start,end) offsets
+    in
+      if startp.y <= -(toFloat h)/4
+      then { model | trees = (BranchFamily (startp,endp) []) :: model.trees } ! []
+      else model ! []
 
-            else chooseRoot (n-1) seed t (treeHead :: hLst)
 
 --creates branch to be inserted once correct position is identified
 addBranch : Seed -> Tree -> Tree
@@ -557,28 +604,10 @@ insertBranch insH seed t =
                         in
                         (1, BranchFamily 1 (start, end) (newTree :: children)) --[newTree]
 
-                    -- recursively insert deeper into the tree
-                    _ ->
-                       let
-                            (randFloat, newSeed) = (Random.step floatGenerator seed)
-                            treeNum = round ((toFloat ((List.length children) - 1)) * randFloat)
-                            --chooseRoot picks path and calls insertBranch
-                            (aboveH, newChildren) = chooseRoot treeNum newSeed (insH-1) children []
-                            
-                            --debugging logs
-                            logT = Debug.log "tree is" t
-                            logC = Debug.log "children are" children
-                            logLen = Debug.log "length children are" (List.length children)
-                            log = Debug.log "choosing path" treeNum
-                        in
-                        if aboveH + 1 > treeH then -- if treeHeight was increased (can only be changed by 1 at a time)
-                            (treeH + 1, BranchFamily (treeH + 1) (start, end) newChildren)
-                        else -- path changed not affecting treeH
-                            (treeH, BranchFamily treeH (start, end) newChildren)
+translateCoords : (Point,Point) -> (Float,Float) -> (Point, Point)
+translateCoords (start, end) (offsetX,offsetY) =
+  ({x = start.x - offsetX, y = offsetY - start.y}, {x = end.x - offsetX, y = (offsetY - end.y) + 40 })
 
-                        --( (insH - aboveH), BranchFamily (start, end) newChildren)
+
 
 -}
-
-
-
