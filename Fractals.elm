@@ -77,7 +77,7 @@ initialModel =
         growFactor = 1.05,
             {-
             [
-                BranchFamily 0 ({x = 100, y = 100}, {x = 100, y = 200}) [] 
+                BranchFamily 0 ({x = 100, y = 100}, {x = 100, y = 200}) []
                 --BranchFamily ({x = 100, y = 100}, {x = 100, y = 200})  []
                 -- This will be it when converted to radians BranchFamily ({x=100, y=100}, ((degree 90), 100))
             ],
@@ -101,7 +101,7 @@ floatGenerator =
     float 0 1
 
 startFractionGenerator : Generator Float
-startFractionGenerator = 
+startFractionGenerator =
     float 0.5 0.9
 
 pointGenerator :  Generator Point  -- Float -> ((Float, Float), Int)
@@ -121,33 +121,33 @@ getDistance (p1, p2) =
 
 
 getTreeNumber : Seed -> List Tree -> (Seed, Int)
-getTreeNumber seed tLst = 
+getTreeNumber seed tLst =
     let
         (randFloat, newSeed) = (Random.step floatGenerator (seed))
         --log = Debug.log "list has length" (List.length tLst)
         --logF = Debug.log "rand float is" randFloat
         listLen = toFloat ( List.length tLst) - 1
         treeNum = round ( randFloat * listLen )
-    in 
+    in
     (newSeed, treeNum)
 
 getTallestTree : Int -> List Tree -> Int
-getTallestTree ht tLst = 
+getTallestTree ht tLst =
     case tLst of
         [] -> ht
         (BranchFamily ht1 _ _)  :: t -> getTallestTree (max ht ht1) t
-         
+
 
 --gets a random root from the list and chooses which tree to branch from, as well as randomly choosing the insert height based on the height of that tree
 chooseRoot : Int -> Float -> Seed -> List Tree -> List Tree
-chooseRoot n growFactor seed tLst = 
+chooseRoot n growFactor seed tLst =
     case tLst of
         [] -> [] -- nothing to add a branch to
-         
-        (BranchFamily ht br lst1) :: t -> 
+
+        (BranchFamily ht br lst1) :: t ->
             if n == 0 then
-                let 
-                    (randFloat, newSeed) = (Random.step floatGenerator (seed)) 
+                let
+                    (randFloat, newSeed) = (Random.step floatGenerator (seed))
                     insH = round (toFloat (ht) * randFloat)
                     updatedRoot = insertBranch insH growFactor newSeed (BranchFamily ht br lst1)
                     --log = Debug.log "updated root is" updatedRoot
@@ -158,15 +158,15 @@ chooseRoot n growFactor seed tLst =
 
 -- grows the branch by some epsilon
 growBranch : Float -> Tree -> Tree
-growBranch epsilon (BranchFamily ht (start, end) lst) = 
+growBranch epsilon (BranchFamily ht (start, end) lst) =
     let
         mag = getDistance (start, end)
-        (dx, dy) = (end.x - start.x, end.y - start.y)  
+        (dx, dy) = (end.x - start.x, end.y - start.y)
         end_ = { x = start.x + (epsilon * dx), y = start.y + (epsilon * dy) }
     in
     BranchFamily ht (start, end_) lst
 
-        
+
 
 
 --- ***** Issue somewhere with tree growing exclusively to the left, fix this!!! ******
@@ -174,22 +174,22 @@ chooseTreeBranch : Int -> Int -> Float -> Seed -> List Tree -> List Tree ---> Li
 chooseTreeBranch n insH growFactor seed tLst =
     case tLst of
         [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
-        h :: t -> 
+        h :: t ->
             let
                 log1 = Debug.log "current treeNum = " n
             in
-            if n == 0 then 
-                let 
+            if n == 0 then
+                let
                     log = Debug.log "chose child tree =" h
-                    newLst = (insertBranch insH growFactor seed h) :: t 
+                    newLst = (insertBranch insH growFactor seed h) :: t
                 in
                 --hLst ++ newLst
                 newLst
             else
                 h :: chooseTreeBranch (n-1) insH growFactor seed t --(h :: hLst)
 
-insertBranch : Int -> Float -> Seed -> Tree -> Tree 
-insertBranch insH growFactor seed tree = 
+insertBranch : Int -> Float -> Seed -> Tree -> Tree
+insertBranch insH growFactor seed tree =
     growBranch growFactor <|
     if insH == 0 then addBranchPair seed tree -- new version of tree
     else case tree of
@@ -203,14 +203,14 @@ insertBranch insH growFactor seed tree =
                     newLst = chooseTreeBranch treeNum (insH-1) growFactor newSeed tLst --[]
                     maxHt = (getTallestTree 0 newLst) + 1
                     --log = Debug.log "maxht for tree is" (tree, maxHt)
-                in 
-                
+                in
+
                 BranchFamily maxHt br newLst
 
 --- gives back angle of parent direction with horizontal
 {-}
 parentDir : (Point, Point) -> Int
-parentDir (start, end) = 
+parentDir (start, end) =
     let
         --(dx, dy) = (end.x - start.x, end.y - start.y)
         --scalar = dx + dy
@@ -220,7 +220,7 @@ parentDir (start, end) =
 
 -- takes in the float, parentAngle (in radians), magnitude, and start point and produces both endpoints
 getEndpts : Float -> Float -> Float -> (Point) -> (Point, Point)
-getEndpts flt parentAngle mag start = 
+getEndpts flt parentAngle mag start =
     let
         splitAngle = ((-200 * flt) + 245) * pi/180 -- decided want angle between 145 and 65 degrees for flts 0.5 to 0.9, respectively (in radians)
         (lAngle, rAngle) = (parentAngle + splitAngle/2, parentAngle - splitAngle/2)
@@ -274,7 +274,7 @@ treeUpdate growFactor seed tLst =
     case tLst of
         [] -> (seed, [])
         BranchFamily treeH (start, end) children :: t->
-            let 
+            let
                 (newSeed, rootNum) = getTreeNumber seed tLst
                 newTrees = chooseRoot rootNum growFactor newSeed tLst
             in
@@ -363,6 +363,9 @@ lineBound x y =
 sunImage : (Float, Float) -> Form
 sunImage pos = image 250 200 "sun.gif" |> toForm |> move pos
 
+cloudImage : (Float, Float) -> Form
+cloudImage pos = image 250 200 "clouds.gif" |> toForm |> move pos
+
 view : Model -> Html Msg
 view model =
     let
@@ -375,7 +378,7 @@ view model =
             , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
             , case model.mode of
                 Spawn -> toHtml <| color black <| Collage.collage w h <| (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
-                Destroy -> toHtml <| color black <| Collage.collage w h <| (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+                Destroy -> toHtml <| color black <| Collage.collage w h <| (cloudImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
 
           ]
 
@@ -413,7 +416,7 @@ makeTreeOld insH seed tLst =
 
         _ -> Debug.crash "shouldn't reach here"
 
-    
+
 
 treeUpdateOld : Int -> Seed -> List Tree -> (Int, Seed, List Tree)
 treeUpdateOld treeH seed tLst =
@@ -504,7 +507,7 @@ makeTree seed tLst =
 >>>>>>> 889d20c257a8d6c94439e63b3b93b81726130d15
             let
                 (randFloat, newSeed) = (Random.step floatGenerator seed)
-                treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)  
+                treeNum = round ((toFloat ((List.length tLst) - 1)) * randFloat)
                 -- picks a random element in the root list to insert into on a tick
 
                 log = Debug.log "root path chosen is" treeNum
@@ -517,11 +520,11 @@ makeTree seed tLst =
 
 
 
---chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree 
+--chooseRoot : Int -> Seed -> List Tree -> List Tree -> List Tree
 chooseRoot : Int -> Int -> Seed -> List Tree -> List Tree -> List Tree
 chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (not explored), head of list ()
     {-
-    let 
+    let
         BranchFamily _ _ children = t
         pickRoot : Int -> Seed -> List Tree -> List Tree
         pickRoot = n seed tLst hLst
@@ -532,13 +535,13 @@ chooseRoot n seed tLst hLst = --location in list of root, seed, tail of list (no
         treeHead :: t ->
             if n == 0 then
                 let
-                    (BranchFamily treeH _ _ ) = treeHead  
+                    (BranchFamily treeH _ _ ) = treeHead
                     (randFloat, newSeed1) = (Random.step floatGenerator (seed))
                     insertHeight = round (toFloat (treeH) * randFloat)
                     (newRootHeight, newRoot) = insertBranch insertHeight seed treeHead
                 in
-                
-                hLst ++ ( newRoot :: t)  
+
+                hLst ++ ( newRoot :: t)
 
 ----- spawntree commented out
 spawnTree : Mouse.Position -> Model -> (Model, Cmd Msg)
@@ -588,15 +591,15 @@ insertBranch insH seed t =
                         newTree = addBranch seed t
                         newChildren = newTree :: children
                     in
-                    
-                    if treeH == 0 then 
+
+                    if treeH == 0 then
                         (1, (BranchFamily 1 (start, end) newChildren ))
                     else
-                        (treeH, BranchFamily treeH (start, end) newChildren ) 
+                        (treeH, BranchFamily treeH (start, end) newChildren )
 
             else -- not at original insH level yet
                 case children of
-                    -- if no children at this branch, but insH > 0, insert a branch and increase the maxHeight of that tree 
+                    -- if no children at this branch, but insH > 0, insert a branch and increase the maxHeight of that tree
                     [] ->
                         let
                             newTree = addBranch seed t
