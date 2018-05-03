@@ -32,6 +32,7 @@ type alias Point = { x:Float, y:Float }
 --type alias Branch = (Point, Vector)
 type alias Branch = (Point, Point) -- (start, end)
 type alias Height = Int
+type alias LastClick = {x : Float, y : Float}
 
 type Mode = Spawn | Destroy
 --type Root = TreeRoot Height Branch (List Tree)
@@ -44,7 +45,8 @@ type alias Model =
         window: Window.Size ,
         seed : Seed ,
         time : Time ,
-        mode : Mode
+        mode : Mode,
+        lastClick : LastClick
     }
 
 type Msg =
@@ -86,7 +88,8 @@ initialModel =
         window = Size 0 0 ,
         seed = Random.initialSeed 4308,
         time = 0.0,
-        mode = Spawn
+        mode = Spawn,
+        lastClick = {x = 0.0, y = 0.0}
 
     }
 
@@ -311,12 +314,20 @@ update msg model =
                         end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
                         (startp, endp) = translateCoords (start,end) offsets
                     in
-                    if startp.y <= -(toFloat h)/4
-                        then { model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
-                    else model ! []
+                      if startp.y <= -(toFloat h)/4
+                        then { model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees, lastClick = startp } ! []
+                        else { model | lastClick = startp} ! []
                         --{ model | trees = (BranchFamily 0 (startp,endp) []) :: model.trees } ! []
 
-                Destroy -> model ! [] --TODO
+                Destroy ->
+                  let
+                      (h, w) = getWindowSize model
+                      offsets = ((toFloat w)/2, (toFloat h)/2)
+                      start = {x = (toFloat pos.x), y = (toFloat pos.y)}
+                      end = {x = (toFloat pos.x), y = (toFloat (pos.y))}
+                      (startp, endp) = translateCoords (start,end) offsets
+                  in
+                      {model | lastClick = startp} ! []
 
 
 
@@ -327,8 +338,7 @@ subscriptions model =
     batch  -- way to listen for multiple subscriptions
         [ resizes SizeUpdated
         , Time.every (0.5* second) Tick
-        , clicks (\pos -> Click pos)
-        ]
+        , clicks (\pos -> Click pos) ]
 
 getWindowSize : Model -> (Int, Int)
 getWindowSize m =
@@ -361,26 +371,39 @@ lineBound x y =
   Collage.traced (Collage.solid brown) (Collage.segment (-x, -y) (x, -y))
 
 sunImage : (Float, Float) -> Form
-sunImage pos = image 250 200 "sun.gif" |> toForm |> move pos
+sunImage pos = image 250 200 "sun-transparent.gif" |> toForm |> move pos
 
 cloudImage : (Float, Float) -> Form
 cloudImage pos = image 250 200 "clouds.gif" |> toForm |> move pos
+
+lightning : LastClick -> (Float, Float) -> Form
+lightning click (startX,startY) =
+  Collage.traced (Collage.solid brown) (Collage.segment (startX, startY) (click.x, click.y))
+
+background : (Int, Int) -> Form
+background (w,h) =
+  let x = w//2 in
+  let y = h//4 in
+    image h w "bg.jpg" |> toForm
 
 view : Model -> Html Msg
 view model =
     let
         (h, w) = getWindowSize model
         trees = getBranches model.trees []
+        bg = background (h,w)
     in
         Html.div []
           [
             Html.button [onClick <| SwitchMode Spawn] [Html.text "Spawn"]
             , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
             , case model.mode of
-                Spawn -> toHtml <| color black <| Collage.collage w h <| (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
-                Destroy -> toHtml <| color black <| Collage.collage w h <| (cloudImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+                Spawn -> toHtml <| Collage.collage w h <| bg :: (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
+                Destroy -> toHtml <| Collage.collage w h <| bg :: (lightning model.lastClick ((toFloat w)/3, (toFloat h)/3) ) :: (cloudImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
 
           ]
+
+
 
 {-
 view : Model -> Html Msg
