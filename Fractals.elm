@@ -54,6 +54,7 @@ type Msg =
   | Tick Time
   | Click Mouse.Position
   | SwitchMode Mode
+  | Clear
 
 init : (Model, Cmd Msg)
 init = (initialModel, initialSize)
@@ -76,7 +77,7 @@ initialModel : Model
 initialModel =
     {
         trees = [],
-        growFactor = 1.05,
+        growFactor = 0.01,
             {-
             [
                 BranchFamily 0 ({x = 100, y = 100}, {x = 100, y = 200}) []
@@ -152,29 +153,78 @@ chooseRoot n growFactor seed tLst =
                 let
                     (randFloat, newSeed) = (Random.step floatGenerator (seed))
                     insH = round (toFloat (ht) * randFloat)
-                    updatedRoot = insertBranch insH growFactor newSeed (BranchFamily ht br lst1)
+                    updatedRoot = insertBranch insH newSeed (BranchFamily ht br lst1)
+                    grownRoot = growTree growFactor updatedRoot
                     --log = Debug.log "updated root is" updatedRoot
                 in
-                updatedRoot :: t
+                grownRoot :: t
             else BranchFamily ht br lst1 :: chooseRoot (n-1) growFactor seed t
 
+growTree : Float -> Tree -> Tree
+growTree growFactor (BranchFamily ht br children) =
+    case children of
+        [] -> growBranch growFactor (BranchFamily ht br [])--BranchFamily ht (growBranch growFactor (s, e)) []
+        h :: t ->
+            let newChildren = List.map (\child -> growTree growFactor child) children in
+            growBranch growFactor (BranchFamily ht br newChildren)
+            --BranchFamily ht (growBranch growFactor (s, e)) newChildren
 
--- grows the branch by some epsilon
+
+limitGrowth : Float -> (Float, Float) -> (Float, Float)
+limitGrowth mag (dx, dy) =
+    if mag > 120 then
+        let scaleFactor = 120/mag  in
+        (dx * scaleFactor, dy * scaleFactor)
+    else (dx, dy)
+
+-- grows the branch by some epsilon and based on the height level of the tree
+--growBranch : Float -> Branch -> Branch
+--growBranch epsilon (start, end) =
 growBranch : Float -> Tree -> Tree
-growBranch epsilon (BranchFamily ht (start, end) lst) =
+growBranch epsilon (BranchFamily ht (start, end) children) =
     let
+        growFactor = 1 + epsilon
         mag = getDistance (start, end)
-        (dx, dy) = (end.x - start.x, end.y - start.y)
-        end_ = { x = start.x + (epsilon * dx), y = start.y + (epsilon * dy) }
+        log = Debug.log "magnitude" mag
+        (dx, dy) = {-limitGrowth mag-} (end.x - start.x, end.y - start.y)
+        end_ = { x = start.x + (growFactor * dx), y = start.y + (growFactor * dy) }
     in
-    BranchFamily ht (start, end_) lst
+    BranchFamily ht (start, end_) children
+
+    {-
+    if ht < 3 then
+        let
+            growFactor = 1 + epsilon
+            mag = getDistance (start, end)
+            (dx, dy) = (end.x - start.x, end.y - start.y)
+            end_ = { x = start.x + (growFactor * dx), y = start.y + (growFactor * dy) }
+        in
+        BranchFamily ht (start, end_) children
+    else if ht < 7 then
+        let
+            growFactor = 1 + (epsilon/5)
+            mag = getDistance (start, end)
+            (dx, dy) = (end.x - start.x, end.y - start.y)
+            end_ = { x = start.x + (growFactor * dx), y = start.y + (growFactor * dy) }
+        in
+        BranchFamily ht (start, end_) children
+    else
+        let
+            growFactor = 1 + (epsilon/5)
+            mag = getDistance (start, end)
+            (dx, dy) = (end.x - start.x, end.y - start.y)
+            end_ = { x = start.x + (growFactor * dx), y = start.y + (growFactor * dy) }
+        in
+        BranchFamily ht (start, end_) children
+    -}
+
 
 
 
 
 --- ***** Issue somewhere with tree growing exclusively to the left, fix this!!! ******
-chooseTreeBranch : Int -> Int -> Float -> Seed -> List Tree -> List Tree ---> List Tree
-chooseTreeBranch n insH growFactor seed tLst =
+chooseTreeBranch : Int -> Int -> Seed -> List Tree -> List Tree ---> List Tree
+chooseTreeBranch n insH seed tLst =
     case tLst of
         [] -> Debug.crash "This shouldn't happen" -- makeBranch and put into child list"
         h :: t ->
@@ -184,16 +234,16 @@ chooseTreeBranch n insH growFactor seed tLst =
             if n == 0 then
                 let
                     log = Debug.log "chose child tree =" h
-                    newLst = (insertBranch insH growFactor seed h) :: t
+                    newLst = (insertBranch insH seed h) :: t
                 in
                 --hLst ++ newLst
                 newLst
             else
-                h :: chooseTreeBranch (n-1) insH growFactor seed t --(h :: hLst)
+                h :: chooseTreeBranch (n-1) insH seed t --(h :: hLst)
 
-insertBranch : Int -> Float -> Seed -> Tree -> Tree
-insertBranch insH growFactor seed tree =
-    growBranch growFactor <|
+insertBranch : Int -> Seed -> Tree -> Tree
+insertBranch insH seed tree =
+
     if insH == 0 then addBranchPair seed tree -- new version of tree
     else case tree of
         (BranchFamily ht br tLst) -> case tLst of
@@ -203,7 +253,7 @@ insertBranch insH growFactor seed tree =
                     (newSeed, treeNum) = getTreeNumber seed tLst
                     logLst = Debug.log "tLst is w/Length" (List.length tLst, tLst)
                     logNum = Debug.log "treeNum for tLst is" treeNum
-                    newLst = chooseTreeBranch treeNum (insH-1) growFactor newSeed tLst --[]
+                    newLst = chooseTreeBranch treeNum (insH-1) newSeed tLst --[]
                     maxHt = (getTallestTree 0 newLst) + 1
                     --log = Debug.log "maxht for tree is" (tree, maxHt)
                 in
@@ -250,7 +300,7 @@ addBranchPair seed t =
 
                 newStart = {x = start.x + (flt * dx), y = start.y + (flt * dy) }
                 -- get magnitude (length) of next branch pair (scale by flt, so that larger branches farther down and smaller branches near top or end of parent)
-                magnitude = (1.2 - flt) * distOfParent
+                magnitude = (1.0 - flt) * distOfParent
                 parentAngle = atan2 dy dx -- get parent angle in radians
 
                 (lEndpt, rEndpt) = getEndpts flt parentAngle magnitude newStart
@@ -272,6 +322,7 @@ addBranchPair seed t =
             else BranchFamily 1 (start, end) (leftTree :: rightTree :: []) -- if treeH == 0, then child tree list must be empty
 
 
+--- update for time-based tree growth/adding of branches
 treeUpdate : Float -> Seed -> List Tree -> (Seed, List Tree)
 treeUpdate growFactor seed tLst =
     case tLst of
@@ -295,14 +346,18 @@ update msg model =
     case msg of
         SizeUpdated newSize -> {model | window = newSize} ! []  -- ! combines what's after it (multiple commands) into one command message
         SwitchMode newMode -> {model | mode = newMode } ! []
+        Clear -> {model | trees = []} ! []
         Tick time ->
-            let
-                seed = Random.initialSeed (round time)
-                -- old(newHeight, newSeed, newTrees) = treeUpdate model.treeHeight seed model.trees
-                (newSeed, newTrees) = treeUpdate model.growFactor seed model.trees
-            in
+            if model.mode == Spawn then
+                let
+                    seed = Random.initialSeed (round time)
+                    -- old(newHeight, newSeed, newTrees) = treeUpdate model.treeHeight seed model.trees
+                    (newSeed, newTrees) = treeUpdate model.growFactor seed model.trees
+                in
 
-            ( {model | trees = newTrees, seed = newSeed, {-treeHeight = newHeight,-} time = time}, Cmd.none )
+                ( {model | trees = newTrees, seed = newSeed, {-treeHeight = newHeight,-} time = time}, Cmd.none )
+            else --in Destroy Mode
+                model ! []
 
         Click pos ->
             case model.mode of
@@ -328,10 +383,6 @@ update msg model =
                       (startp, endp) = translateCoords (start,end) offsets
                   in
                       {model | lastClick = startp} ! []
-
-
-
-
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -397,6 +448,7 @@ view model =
           [
             Html.button [onClick <| SwitchMode Spawn] [Html.text "Spawn"]
             , Html.button [onClick <| SwitchMode Destroy] [Html.text "Destroy"]
+            , Html.button [onClick <| Clear] [Html.text "Clear All Trees"]
             , case model.mode of
                 Spawn -> toHtml <| Collage.collage w h <| bg :: (sunImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
                 Destroy -> toHtml <| Collage.collage w h <| bg :: (lightning model.lastClick ((toFloat w)/3, (toFloat h)/3) ) :: (cloudImage ((toFloat w)/3, (toFloat h)/3)) :: (lineBound ((toFloat w)/2) ((toFloat h)/4)) :: trees
